@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifeos-v1';
+const CACHE_NAME = 'lifeos-v2';
 const ASSETS = [
     './',
     './index.html',
@@ -8,7 +8,10 @@ const ASSETS = [
     './js/sport.js',
     './js/bodycare.js',
     './js/gamification.js',
-    './manifest.json'
+    './js/i18n.js',
+    './js/settings.js',
+    './manifest.json',
+    './icon.svg'
 ];
 
 self.addEventListener('install', (e) => {
