@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1e1e2f"/>
+            <stop offset="100%" stop-color="#0a0a1a"/>
+        </linearGradient>
+        <linearGradient id="lGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4f46e5"/>
+            <stop offset="100%" stop-color="#0ea5e9"/>
+        </linearGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="15" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+    </defs>
+    <!-- Background -->
+    <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+    
+    <!-- Outer Ring -->
+    <circle cx="256" cy="256" r="160" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="8"/>
+    
+    <!-- Glowing L -->
+    <path d="M210 160 v150 a20 20 0 0 0 20 20 h100" fill="none" stroke="url(#lGrad)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+    
+    <!-- Inner Accent Dot -->
+    <circle cx="160" cy="330" r="16" fill="#0ea5e9"/>
+</svg>
