@@ -257,6 +257,15 @@
                 </div>
             </div>
             <div id="expand-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
+                    <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
+                    <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
+                    <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
+                    <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
+                    <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
+                    <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
+                </div>
                 <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
                 <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
                     ${r.ingredients.map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
@@ -421,6 +430,15 @@
                     </div>
                 </div>
                 <div id="expand-lib-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
+                        <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
+                        <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
+                        <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
+                        <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
+                        <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
+                        <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
+                    </div>
                     <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
                     <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
                         ${(r.ingredients || []).map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
