@@ -466,6 +466,22 @@
                 </div>
             </div>
             
+            <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Details</h4>
+            <div class="form-group">
+                <label class="form-label">Ingredients (Format: Amount Unit Name, e.g. "200 g Tofu", one per line)</label>
+                <textarea id="recipe-ing" class="form-input" style="resize:vertical; min-height:80px;" placeholder="200 g Tofu\n1 tbsp Soy sauce\n100 g Broccoli"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Instructions</label>
+                <textarea id="recipe-inst" class="form-input" style="resize:vertical; min-height:80px;" placeholder="1. Fry tofu...\n2. Add broccoli..."></textarea>
+            </div>
+
+            <div style="margin: 16px 0; text-align: center;">
+                <button type="button" id="btn-calc-macros" class="btn btn-sm" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd;">
+                    Auto-Calculate Macros with AI 🤖
+                </button>
+            </div>
+            
             <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Nutritional Values</h4>
             <div class="form-row">
                 <div class="form-group">
@@ -497,16 +513,6 @@
                     <input type="number" step="0.1" id="recipe-b12" class="form-input" value="0">
                 </div>
             </div>
-            
-            <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Details</h4>
-            <div class="form-group">
-                <label class="form-label">Ingredients (Format: Amount Unit Name, e.g. "200 g Tofu", one per line)</label>
-                <textarea id="recipe-ing" class="form-input" style="resize:vertical; min-height:80px;" placeholder="200 g Tofu\n1 tbsp Soy sauce\n100 g Broccoli"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Instructions</label>
-                <textarea id="recipe-inst" class="form-input" style="resize:vertical; min-height:80px;" placeholder="1. Fry tofu...\n2. Add broccoli..."></textarea>
-            </div>
         `;
         const footerHTML = `
             <button class="btn btn-ghost" onclick="App.hideModal()">Cancel</button>
@@ -514,6 +520,82 @@
         `;
         
         window.App.showModal('Add Custom Recipe', bodyHTML, footerHTML);
+
+        document.getElementById('btn-calc-macros').addEventListener('click', async () => {
+            const apiKey = localStorage.getItem('lifeos_deepseek_key');
+            if (!apiKey) {
+                window.App.showToast('Please add your DeepSeek API key in Settings.', 'error');
+                return;
+            }
+            
+            const ingredients = document.getElementById('recipe-ing').value.trim();
+            if (!ingredients) {
+                window.App.showToast('Please enter some ingredients first.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btn-calc-macros');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Calculating... ⏳';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('https://api.deepseek.com/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "deepseek-chat",
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You are a nutrition expert. Estimate the total nutritional values of the provided ingredients combined. Return ONLY a valid JSON object with the following numerical keys: calories, protein, zinc, omega3, iron, vitaminB12. Do not include markdown formatting, markdown code blocks, or any other text."
+                            },
+                            {
+                                role: "user",
+                                content: ingredients
+                            }
+                        ],
+                        temperature: 0.1
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error.message || 'API Error');
+                }
+
+                let content = data.choices[0].message.content.trim();
+                
+                // Strip markdown if it still returned it
+                if (content.startsWith('\`\`\`json')) {
+                    content = content.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+                } else if (content.startsWith('\`\`\`')) {
+                    content = content.replace(/\`\`\`/g, '').trim();
+                }
+
+                const result = JSON.parse(content);
+
+                if (result.calories !== undefined) document.getElementById('recipe-cal').value = Math.round(result.calories);
+                if (result.protein !== undefined) document.getElementById('recipe-pro').value = Math.round(result.protein);
+                if (result.zinc !== undefined) document.getElementById('recipe-zinc').value = result.zinc;
+                if (result.omega3 !== undefined) document.getElementById('recipe-omega').value = Math.round(result.omega3);
+                if (result.iron !== undefined) document.getElementById('recipe-iron').value = result.iron;
+                if (result.vitaminB12 !== undefined) document.getElementById('recipe-b12').value = result.vitaminB12;
+
+                window.App.showToast('Macros estimated automatically!', 'success');
+
+            } catch (err) {
+                console.error('AI Calculation Error:', err);
+                window.App.showToast('Failed to calculate macros. Check API key.', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
 
         document.getElementById('btn-save-recipe').addEventListener('click', () => {
             const name = document.getElementById('recipe-name').value.trim();

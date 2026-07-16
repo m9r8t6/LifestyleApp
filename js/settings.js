@@ -51,6 +51,12 @@
                         <button type="button" class="time-toggle-btn ${!soundOn ? 'active' : ''}" id="btn-sound-off">${t('off')}</button>
                     </div>
                 </div>
+
+                <div class="form-group" style="margin-top: 24px; margin-bottom: 0;">
+                    <label class="form-label">DeepSeek API Key (AI Recipe Macros)</label>
+                    <input type="password" id="input-api-key" class="form-input" value="${localStorage.getItem('lifeos_deepseek_key') || ''}" placeholder="sk-..." style="font-family: monospace;">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Stored locally in your browser. Never synced or shared.</p>
+                </div>
             </div>
         `;
 
@@ -77,6 +83,11 @@
         document.getElementById('btn-sound-off')?.addEventListener('click', () => { 
             localStorage.setItem('lifeos_sound', 'off'); 
             renderSection(); 
+        });
+
+        document.getElementById('input-api-key')?.addEventListener('change', (e) => {
+            localStorage.setItem('lifeos_deepseek_key', e.target.value.trim());
+            if(window.App) window.App.showToast('API Key saved securely', 'success');
         });
     }
 
