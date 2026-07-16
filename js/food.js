@@ -486,8 +486,20 @@
             
             <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Details</h4>
             <div class="form-group">
-                <label class="form-label">Ingredients (Format: Amount Unit Name, e.g. "200 g Tofu", one per line)</label>
-                <textarea id="recipe-ing" class="form-input" style="resize:vertical; min-height:80px;" placeholder="200 g Tofu\n1 tbsp Soy sauce\n100 g Broccoli"></textarea>
+                <label class="form-label">Ingredients</label>
+                <div id="recipe-ing-list" style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text);"></div>
+                <div class="form-row" style="margin-bottom: 8px;">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <input type="number" step="any" id="ing-amount" class="form-input" placeholder="Amount (e.g. 200)" style="font-size: 0.8rem;">
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <input type="text" id="ing-unit" class="form-input" placeholder="Unit (g, tbsp)" style="font-size: 0.8rem;">
+                    </div>
+                    <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                        <input type="text" id="ing-name" class="form-input" placeholder="Name (e.g. Tofu)" style="font-size: 0.8rem;">
+                    </div>
+                </div>
+                <button type="button" id="btn-add-ing" class="btn btn-sm btn-ghost" style="width: 100%; border: 1px dashed var(--glass-border);">+ Add Ingredient</button>
             </div>
             <div class="form-group">
                 <label class="form-label">Instructions</label>
@@ -537,7 +549,40 @@
             <button class="btn btn-primary" id="btn-save-recipe">Save</button>
         `;
         
+        window.currentRecipeIngredients = [];
+        window.renderTempIngredients = () => {
+            const list = document.getElementById('recipe-ing-list');
+            if (!list) return;
+            if (window.currentRecipeIngredients.length === 0) {
+                list.innerHTML = '<span style="color:var(--text-muted);">No ingredients added yet.</span>';
+                return;
+            }
+            list.innerHTML = window.currentRecipeIngredients.map((i, idx) => `
+                <div style="display:flex; justify-content:space-between; margin-bottom: 4px; padding: 4px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                    <span>${i.amount} ${i.unit} ${i.name}</span>
+                    <span style="color:var(--error); cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.currentRecipeIngredients.splice(${idx}, 1); window.renderTempIngredients();">×</span>
+                </div>
+            `).join('');
+        };
+
         window.App.showModal('Add Custom Recipe', bodyHTML, footerHTML);
+        window.renderTempIngredients();
+
+        document.getElementById('btn-add-ing').addEventListener('click', () => {
+            const amt = document.getElementById('ing-amount').value;
+            const unit = document.getElementById('ing-unit').value.trim();
+            const name = document.getElementById('ing-name').value.trim();
+            if (!amt || !name) {
+                window.App.showToast('Amount and Name are required.', 'error');
+                return;
+            }
+            window.currentRecipeIngredients.push({ amount: parseFloat(amt), unit: unit || 'whole', name });
+            document.getElementById('ing-amount').value = '';
+            document.getElementById('ing-unit').value = '';
+            document.getElementById('ing-name').value = '';
+            window.renderTempIngredients();
+            document.getElementById('ing-amount').focus();
+        });
 
         document.getElementById('btn-calc-macros').addEventListener('click', async () => {
             const apiKey = localStorage.getItem('lifeos_deepseek_key');
@@ -546,11 +591,12 @@
                 return;
             }
             
-            const ingredients = document.getElementById('recipe-ing').value.trim();
-            if (!ingredients) {
-                window.App.showToast('Please enter some ingredients first.', 'error');
+            if (window.currentRecipeIngredients.length === 0) {
+                window.App.showToast('Please add some ingredients first.', 'error');
                 return;
             }
+
+            const ingredientsText = window.currentRecipeIngredients.map(i => `${i.amount} ${i.unit} ${i.name}`).join('\n');
 
             const btn = document.getElementById('btn-calc-macros');
             const originalText = btn.innerHTML;
@@ -569,11 +615,11 @@
                         messages: [
                             {
                                 role: "system",
-                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the raw ingredients into a strict format: '[Amount] [Unit] [Name]', one per line (e.g., '100 g Tofu'). Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, AND a string key 'formattedIngredients' containing the cleaned list. Do not include markdown formatting or any other text."
+                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato', 'tomatoe' -> 'Tomato') so they group cleanly on a grocery list. Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, AND an array key 'standardizedIngredients' containing objects exactly like {amount: number, unit: string, name: string}. Do not include markdown formatting."
                             },
                             {
                                 role: "user",
-                                content: ingredients
+                                content: ingredientsText
                             }
                         ],
                         temperature: 0.1
@@ -603,7 +649,11 @@
                 if (result.omega3 !== undefined) document.getElementById('recipe-omega').value = Math.round(result.omega3);
                 if (result.iron !== undefined) document.getElementById('recipe-iron').value = result.iron;
                 if (result.vitaminB12 !== undefined) document.getElementById('recipe-b12').value = result.vitaminB12;
-                if (result.formattedIngredients) document.getElementById('recipe-ing').value = result.formattedIngredients;
+                
+                if (result.standardizedIngredients && Array.isArray(result.standardizedIngredients)) {
+                    window.currentRecipeIngredients = result.standardizedIngredients;
+                    window.renderTempIngredients();
+                }
 
                 window.App.showToast('Macros estimated & ingredients formatted!', 'success');
 
@@ -628,42 +678,18 @@
             const iron = parseFloat(document.getElementById('recipe-iron').value) || 0;
             const b12 = parseFloat(document.getElementById('recipe-b12').value) || 0;
             
-            const rawIng = document.getElementById('recipe-ing').value.trim();
             const inst = document.getElementById('recipe-inst').value.trim();
 
             if (!name) {
                 window.App.showToast('Please enter a name.', 'error');
                 return;
             }
-
-            // Parse ingredients
-            const ingredients = [];
-            if (rawIng) {
-                const lines = rawIng.split('\\n');
-                lines.forEach(line => {
-                    const parts = line.trim().split(' ');
-                    if (parts.length >= 2) {
-                        let amount = parseFloat(parts[0]);
-                        if (!isNaN(amount)) {
-                            // "200 g Tofu" -> amount=200, unit='g', name='Tofu'
-                            // "1 tbsp Soy sauce" -> amount=1, unit='tbsp', name='Soy sauce'
-                            const unit = parts[1];
-                            const iName = parts.slice(2).join(' ');
-                            if (iName) {
-                                ingredients.push({ name: iName, amount: amount, unit: unit });
-                            } else {
-                                // "1 Avocado" -> amount=1, unit='', name='Avocado'
-                                ingredients.push({ name: parts.slice(1).join(' '), amount: amount, unit: 'whole' });
-                            }
-                        } else {
-                            // "Pinch of salt"
-                            ingredients.push({ name: line.trim(), amount: 1, unit: 'serving' });
-                        }
-                    } else if (line.trim()) {
-                        ingredients.push({ name: line.trim(), amount: 1, unit: 'serving' });
-                    }
-                });
+            if (window.currentRecipeIngredients.length === 0) {
+                window.App.showToast('Please add at least one ingredient.', 'error');
+                return;
             }
+
+            const ingredients = [...window.currentRecipeIngredients];
 
             recipes.push({
                 id: 'c_' + Date.now().toString(36),
