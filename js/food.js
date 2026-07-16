@@ -569,7 +569,7 @@
                         messages: [
                             {
                                 role: "system",
-                                content: "You are a nutrition expert. Estimate the total nutritional values of the provided ingredients combined. Return ONLY a valid JSON object with the following numerical keys: calories, protein, zinc, omega3, iron, vitaminB12. Do not include markdown formatting, markdown code blocks, or any other text."
+                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the raw ingredients into a strict format: '[Amount] [Unit] [Name]', one per line (e.g., '100 g Tofu'). Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, AND a string key 'formattedIngredients' containing the cleaned list. Do not include markdown formatting or any other text."
                             },
                             {
                                 role: "user",
@@ -603,8 +603,9 @@
                 if (result.omega3 !== undefined) document.getElementById('recipe-omega').value = Math.round(result.omega3);
                 if (result.iron !== undefined) document.getElementById('recipe-iron').value = result.iron;
                 if (result.vitaminB12 !== undefined) document.getElementById('recipe-b12').value = result.vitaminB12;
+                if (result.formattedIngredients) document.getElementById('recipe-ing').value = result.formattedIngredients;
 
-                window.App.showToast('Macros estimated automatically!', 'success');
+                window.App.showToast('Macros estimated & ingredients formatted!', 'success');
 
             } catch (err) {
                 console.error('AI Calculation Error:', err);
