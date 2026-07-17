@@ -127,6 +127,14 @@
                         </label>
                     </div>
                 </div>
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label class="form-label">Meal Prep Strategy</label>
+                    <select id="profile-meal-prep" class="form-input" style="font-size:0.9rem;">
+                        <option value="none" ${profile.meal_prep==='none'?'selected':''}>Standard (Different meals daily)</option>
+                        <option value="2days" ${profile.meal_prep==='2days'?'selected':''}>Cook for 2 Days (Duplicate Dinners to Lunches)</option>
+                        <option value="3days" ${profile.meal_prep==='3days'?'selected':''}>Cook for 3 Days (Same meals for 3 days)</option>
+                    </select>
+                </div>
                 
                 <button class="btn btn-primary" id="btn-save-profile" style="width:100%; margin-top:24px;">Save Profile</button>
             </div>
@@ -170,6 +178,7 @@
                 height: parseInt(document.getElementById('profile-height').value) || 180,
                 diet: document.getElementById('profile-diet').value,
                 budget: document.getElementById('profile-budget').value,
+                meal_prep: document.getElementById('profile-meal-prep').value,
                 goals: {
                     muscle: document.getElementById('goal-muscle').checked,
                     skin: document.getElementById('goal-skin').checked,

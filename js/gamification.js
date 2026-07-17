@@ -20,8 +20,16 @@ window.GamificationModule = (() => {
         level: 1,
         streak: 0,
         lastCompletedDate: null,
-        history: {} // { 'YYYY-MM-DD': { score: number } }
+        history: {}, // { 'YYYY-MM-DD': { score: number } }
+        achievements: []
     };
+
+    const ACHIEVEMENTS = [
+        { id: 'streak_3', title: 'On Fire', desc: 'Reach a 3-day streak', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;"><path d="M8.5 14.5A2.5 2.5 0 0011 12c-1.1 0-2.4-.6-2.4-2.5S10.2 6.5 12 5c2.3 2 4 4.5 4 7 0 2-1 4-3 5.5"></path><path d="M12 22a9 9 0 100-18 9 9 0 000 18z"></path></svg>` },
+        { id: 'streak_7', title: 'Consistency King', desc: 'Reach a 7-day streak', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path><path d="M16 18h.01"></path></svg>` },
+        { id: 'level_5', title: 'Rising Star', desc: 'Reach Level 5', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>` },
+        { id: 'perfect_day', title: 'Flawless', desc: 'Complete 100% of all daily tasks', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>` }
+    ];
 
     // ─── Persistence ───
 
@@ -228,9 +236,29 @@ window.GamificationModule = (() => {
         if (newLevel > oldLevel) {
             // Level up! 🎉
             setTimeout(() => {
-                App.showToast(`🎉 Level Up! You reached Level ${newLevel}!`, 'success');
+                if(window.App) window.App.showToast(`Level Up! You reached Level ${newLevel}!`, 'success');
             }, 300);
         }
+
+        // Check Achievements
+        data.achievements = data.achievements || [];
+        let newlyUnlocked = false;
+
+        const unlock = (id) => {
+            if (!data.achievements.includes(id)) {
+                data.achievements.push(id);
+                newlyUnlocked = true;
+                const ach = ACHIEVEMENTS.find(a => a.id === id);
+                if (ach && window.App) {
+                    setTimeout(() => window.App.showToast(`Achievement Unlocked: ${ach.title}!`, 'success'), 800);
+                }
+            }
+        };
+
+        if (data.streak >= 3) unlock('streak_3');
+        if (data.streak >= 7) unlock('streak_7');
+        if (data.level >= 5) unlock('level_5');
+        if (overallPct === 100) unlock('perfect_day');
 
         save();
         updateHeaderXP();
@@ -397,6 +425,29 @@ window.GamificationModule = (() => {
                                 </div>
                             `).join('');
                         })()}
+                    </div>
+                </div>
+                
+                <!-- Achievements -->
+                <div style="margin-top:24px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Achievements</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 12px;">
+                        ${ACHIEVEMENTS.map(ach => {
+                            const unlocked = data.achievements && data.achievements.includes(ach.id);
+                            const opacity = unlocked ? '1' : '0.4';
+                            const filter = unlocked ? 'none' : 'grayscale(100%)';
+                            const border = unlocked ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid rgba(255,255,255,0.05)';
+                            const bg = unlocked ? 'rgba(139, 92, 246, 0.1)' : 'rgba(0,0,0,0.2)';
+                            const color = unlocked ? '#c4b5fd' : 'var(--text-muted)';
+                            return `
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; background: ${bg}; border: ${border}; border-radius: 12px; opacity: ${opacity}; filter: ${filter}; transition: all 0.3s ease; text-align: center;">
+                                    <div style="width: 32px; height: 32px; color: ${color};">
+                                        ${ach.svg}
+                                    </div>
+                                    <div style="font-size: 0.65rem; font-weight: 600; color: var(--text); line-height: 1.2;">${ach.title}</div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             </div>

@@ -902,10 +902,19 @@
             try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
             const diet = profile.diet || 'vegetarian';
             const budget = profile.budget || 'standard';
+            const mealPrep = profile.meal_prep || 'none';
+
+            let mealPrepInstruction = "";
+            if (mealPrep === '2days') {
+                mealPrepInstruction = "MEAL PREP RULE: You MUST duplicate dinner recipes into the next day's lunch to save cooking time. (e.g. Monday Dinner == Tuesday Lunch).";
+            } else if (mealPrep === '3days') {
+                mealPrepInstruction = "MEAL PREP RULE: You MUST serve the exact same 3 meals for 3 consecutive days to support extreme batch cooking (e.g. Mon/Tue/Wed have identical meals).";
+            }
 
             const sysPrompt = `You are a world-class nutritionist AI.
 The user's dietary restriction is: ${diet}.
 Their budget preference is: ${budget} (if cheap, prioritize lower-cost recipes).
+${mealPrepInstruction}
 They need a 7-day meal plan chosen ONLY from the exact list of recipes provided below.
 The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
 Here is the catalog of available recipes (choose from these IDs):

@@ -350,15 +350,22 @@
                 todayPlan.exercises.forEach((ex, idx) => {
                     const isDone = completion.completed.includes(ex.id);
                     let lastW = '';
+                    let isPR = false;
                     if (sportHistory[ex.name] && sportHistory[ex.name].length > 0) {
                         lastW = sportHistory[ex.name][sportHistory[ex.name].length - 1].weight;
+                        const maxW = Math.max(...sportHistory[ex.name].map(h => h.weight));
+                        if (lastW === maxW && sportHistory[ex.name].length > 1) { // PR if it's the max and they have history
+                            isPR = true;
+                        }
                     }
                     
+                    const trophySvg = isPR ? `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #fbbf24; margin-left: 6px; vertical-align: middle; display:inline-block;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>` : '';
+                    
                     tHtml += `
-                        <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" data-ex-id="${ex.id}">
+                        <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" data-ex-id="${ex.id}" data-ex-name="${ex.name}">
                             <div class="checklist-check">✓</div>
                             <div class="checklist-content" style="flex: 1;">
-                                <div class="checklist-text">${ex.name}</div>
+                                <div class="checklist-text" style="display:flex; align-items:center;">${ex.name}${trophySvg}</div>
                                 <div class="checklist-sub">${ex.sets} sets × ${ex.reps} ${ex.weight ? '| '+ex.weight : ''}</div>
                             </div>
                             <div class="weight-input-container" style="display:flex; align-items:center; gap:4px;" onclick="event.stopPropagation()">
@@ -392,12 +399,25 @@
                 if (saveBtn && inputField) {
                     saveBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        const exName = item.querySelector('.checklist-text').textContent;
+                        const exName = item.getAttribute('data-ex-name');
                         const w = inputField.value;
                         if (w.trim() !== '') {
+                            const numericW = parseFloat(w);
+                            let maxW = 0;
+                            if (sportHistory[exName] && sportHistory[exName].length > 0) {
+                                maxW = Math.max(...sportHistory[exName].map(h => h.weight));
+                            }
+                            
                             if (!sportHistory[exName]) sportHistory[exName] = [];
-                            sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: parseFloat(w) });
+                            sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: numericW });
                             saveSportHistory();
+                            
+                            if (numericW > maxW && maxW > 0) {
+                                if(window.App) window.App.showToast(`New PR for ${exName}!`, 'success');
+                                // Trigger a re-render to show the badge
+                                setTimeout(() => renderSection(), 100);
+                            }
+                            
                             renderAnalytics();
                             
                             saveBtn.textContent = '✓';
@@ -538,23 +558,55 @@
         
         validExs.sort((a,b) => sportHistory[b].length - sportHistory[a].length);
         const topExs = validExs.slice(0, 2);
+        let profile = {};
+        try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
+        const bw = profile.weight || 75;
+
+        // Big 3 mappings
+        const metricsMap = {
+            'bench press': { int: 1.0, adv: 1.5 },
+            'squat': { int: 1.3, adv: 1.8 },
+            'deadlift': { int: 1.5, adv: 2.0 }
+        };
+
+        const sortedKeys = Object.keys(sportHistory).sort((a,b) => sportHistory[b].length - sportHistory[a].length);
+        if (sortedKeys.length === 0) return;
         
         let html = `
-            <div class="card-header-row" style="margin-top:24px; margin-bottom:12px;">
-                <div class="section-title" style="margin:0"><div class="section-title-icon" style="background:rgba(139, 92, 246, 0.15); color: #c4b5fd;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><h2>Strength Progress</h2></div>
+            <div class="card-header-row" style="margin-top:24px; margin-bottom: 12px;">
+                <h2>${t('strength_progress')}</h2>
             </div>
-            <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="stagger-item" style="display:flex; flex-direction:column; gap:16px;">
         `;
         
-        topExs.forEach(exName => {
+        sortedKeys.slice(0, 3).forEach(exName => {
             const dataPts = sportHistory[exName].slice(-5);
             const minW = Math.min(...dataPts.map(d => d.weight));
             const maxW = Math.max(...dataPts.map(d => d.weight));
             const range = maxW - minW || 1;
             
+            let communityMetric = '';
+            const exKey = exName.toLowerCase();
+            let metricData = null;
+            for(const key of Object.keys(metricsMap)) {
+                if (exKey.includes(key)) { metricData = metricsMap[key]; break; }
+            }
+            
+            if (metricData) {
+                const ratio = maxW / bw;
+                let standing = 'Beginner';
+                let color = 'var(--text-muted)';
+                if (ratio >= metricData.adv) { standing = 'Advanced'; color = '#10b981'; }
+                else if (ratio >= metricData.int) { standing = 'Intermediate'; color = '#3b82f6'; }
+                
+                communityMetric = `<div style="font-size:0.65rem; color:${color}; border: 1px solid ${color}40; background: ${color}10; padding: 2px 6px; border-radius: 4px; display:inline-block; margin-left: 8px;">${standing}</div>`;
+            }
+            
             html += `
                 <div class="glass-card-sm">
-                    <div style="font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:8px;">${exName}</div>
+                    <div style="font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:8px; display:flex; align-items:center;">
+                        ${exName} ${communityMetric}
+                    </div>
                     <div style="display:flex; align-items:flex-end; justify-content:space-between; height:70px; padding-top:10px;">
                         ${dataPts.map(d => {
                             const pct = ((d.weight - minW) / range) * 80 + 20;
