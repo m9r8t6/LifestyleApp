@@ -45,7 +45,11 @@
             no_groceries: "No upcoming meals planned.",
             targets_hit: "Your meals hit all targets today!",
             recipe_library: "Recipe Library",
-            add_recipe: "+ Add Recipe"
+            add_recipe: "+ Add Recipe",
+            strength_progress: "Strength Progress",
+            achievements: "Achievements",
+            level: "Level",
+            meal_prep_strategy: "Meal Prep Strategy"
         },
         de: {
             nav_today: 'Heute',
@@ -90,7 +94,11 @@
             no_groceries: "Keine kommenden Mahlzeiten geplant.",
             targets_hit: "Deine Mahlzeiten erreichen heute alle Ziele!",
             recipe_library: "Rezeptbibliothek",
-            add_recipe: "+ Neues Rezept"
+            add_recipe: "+ Neues Rezept",
+            strength_progress: "Kraftfortschritte",
+            achievements: "Erfolge",
+            level: "Level",
+            meal_prep_strategy: "Meal-Prep Strategie"
         }
     };
 

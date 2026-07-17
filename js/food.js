@@ -900,7 +900,13 @@
             
             let profile = {};
             try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
-            const diet = profile.diet || 'vegetarian';
+            
+            const dietRestr = profile.dietRestrictions || [];
+            const legacyDiet = profile.diet && profile.diet !== 'none' ? profile.diet : '';
+            const allDiet = [...dietRestr];
+            if (legacyDiet && !allDiet.includes(legacyDiet)) allDiet.push(legacyDiet);
+            const diet = allDiet.length > 0 ? allDiet.join(', ') : 'none';
+            
             const budget = profile.budget || 'standard';
             const mealPrep = profile.meal_prep || 'none';
 
@@ -911,9 +917,20 @@
                 mealPrepInstruction = "MEAL PREP RULE: You MUST serve the exact same 3 meals for 3 consecutive days to support extreme batch cooking (e.g. Mon/Tue/Wed have identical meals).";
             }
 
+            const goals = [];
+            if (profile.goals) {
+                if (profile.goals.muscle) goals.push("Muscle Gain");
+                if (profile.goals.skin) goals.push("Better Skin (Acne-friendly)");
+                if (profile.goals.hair) goals.push("Hair/Eyebrow Growth");
+            }
+            const goalsStr = goals.length > 0 ? `The user's physical goals are: ${goals.join(', ')}. Optimize the recipe selection to support these goals.` : '';
+            
+            const lang = localStorage.getItem('lifeos_lang') === 'de' ? 'German' : 'English';
+
             const sysPrompt = `You are a world-class nutritionist AI.
 The user's dietary restriction is: ${diet}.
 Their budget preference is: ${budget} (if cheap, prioritize lower-cost recipes).
+${goalsStr}
 ${mealPrepInstruction}
 They need a 7-day meal plan chosen ONLY from the exact list of recipes provided below.
 The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
@@ -992,14 +1009,32 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
 
         let profile = {};
         try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
-        const diet = profile.diet || 'vegetarian';
+        
+        const dietRestr = profile.dietRestrictions || [];
+        const legacyDiet = profile.diet && profile.diet !== 'none' ? profile.diet : '';
+        const allDiet = [...dietRestr];
+        if (legacyDiet && !allDiet.includes(legacyDiet)) allDiet.push(legacyDiet);
+        const diet = allDiet.length > 0 ? allDiet.join(', ') : 'none';
+        
         const budget = profile.budget || 'standard';
+
+        const goals = [];
+        if (profile.goals) {
+            if (profile.goals.muscle) goals.push("Muscle Gain");
+            if (profile.goals.skin) goals.push("Better Skin (Acne-friendly)");
+            if (profile.goals.hair) goals.push("Hair/Eyebrow Growth");
+        }
+        const goalsStr = goals.length > 0 ? `The user's physical goals are: ${goals.join(', ')}. Optimize the recipe to heavily support these goals.` : '';
+
+        const lang = localStorage.getItem('lifeos_lang') === 'de' ? 'German' : 'English';
 
         const existingNames = recipes.map(r => r.name).join(', ');
 
         const sysPrompt = `You are a world-class nutritionist AI. The user wants a NEW, delicious, easy-to-cook recipe to add to their library.
+You MUST write the recipe in ${lang} language.
 Their dietary restriction is: ${diet}.
 Their budget preference is: ${budget} (if cheap, strictly limit to low-cost ingredients).
+${goalsStr}
 They already have these recipes, do NOT duplicate them: ${existingNames}.
 Their personal daily nutritional targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg, Vit C: ${DAILY_TARGETS.vitaminC}mg, Vit D: ${DAILY_TARGETS.vitaminD}mcg, Vit E: ${DAILY_TARGETS.vitaminE}mg, Biotin: ${DAILY_TARGETS.biotin}mcg, Magnesium: ${DAILY_TARGETS.magnesium}mg, Fiber: ${DAILY_TARGETS.fiber}g.
 The recipe should be roughly 1/3 of these targets.

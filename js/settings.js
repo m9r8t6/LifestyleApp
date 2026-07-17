@@ -96,7 +96,11 @@
                 <div class="form-row" style="margin-top: 12px;">
                     <div class="form-group">
                         <label class="form-label">Dietary Restrictions</label>
-                        <input type="text" id="profile-diet" class="form-input" style="font-size:0.9rem;" value="${profile.diet || ''}" placeholder="e.g. Vegetarian, Dairy-Free">
+                        <div id="diet-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="diet-input" class="form-input" style="font-size:0.9rem;" placeholder="e.g. No Milk">
+                            <button id="btn-add-diet" class="btn btn-secondary" style="padding:0 12px; font-weight:bold; background:var(--bg-glass); border:1px solid rgba(255,255,255,0.1); color:var(--text); border-radius:6px; cursor:pointer;">+</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Budget</label>
@@ -154,8 +158,37 @@
                 <button class="btn btn-primary" id="btn-save-profile" style="width:100%; margin-top:24px;">Save Profile</button>
             </div>
         `;
-
         container.innerHTML = html;
+
+        // Initialize Diet Chips
+        const savedDiet = profile.dietRestrictions || [];
+        const dietChipsContainer = document.getElementById('diet-chips');
+        const dietInput = document.getElementById('diet-input');
+        
+        window.removeDiet = (idx) => {
+            savedDiet.splice(idx, 1);
+            renderDietChips();
+        };
+
+        const renderDietChips = () => {
+            if (!dietChipsContainer) return;
+            dietChipsContainer.innerHTML = savedDiet.map((d, i) => `
+                <div style="background:var(--primary-light); color:white; padding:4px 10px; border-radius:12px; font-size:0.75rem; display:flex; align-items:center; gap:6px;">
+                    ${d} <span style="cursor:pointer; font-weight:bold;" onclick="window.removeDiet(${i})">×</span>
+                </div>
+            `).join('');
+        };
+
+        renderDietChips();
+
+        document.getElementById('btn-add-diet')?.addEventListener('click', () => {
+            const val = dietInput.value.trim();
+            if (val && !savedDiet.includes(val)) {
+                savedDiet.push(val);
+                dietInput.value = '';
+                renderDietChips();
+            }
+        });
 
         document.getElementById('btn-lang-en')?.addEventListener('click', () => { window.i18n.setLang('en'); renderSection(); });
         document.getElementById('btn-lang-de')?.addEventListener('click', () => { window.i18n.setLang('de'); renderSection(); });
@@ -191,7 +224,7 @@
                 age: parseInt(document.getElementById('profile-age').value) || 25,
                 weight: parseFloat(document.getElementById('profile-weight').value) || 75,
                 height: parseInt(document.getElementById('profile-height').value) || 180,
-                diet: document.getElementById('profile-diet').value,
+                dietRestrictions: savedDiet,
                 budget: document.getElementById('profile-budget').value,
                 meal_prep: document.getElementById('profile-meal-prep').value,
                 big3: [
