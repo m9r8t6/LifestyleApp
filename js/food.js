@@ -416,15 +416,55 @@
         const mealIds = mealPlan[today] || [];
         const todayRecipes = mealIds.map(id => recipes.find(r => r.id === id)).filter(Boolean);
 
-        let sum = { protein:0, zinc:0, omega3:0, vitaminA:0, iron:0, vitaminB12:0 };
+        let sum = { calories:0, protein:0, zinc:0, omega3:0, vitaminA:0, iron:0, vitaminB12:0, vitaminC:0, vitaminD:0, vitaminE:0, biotin:0, magnesium:0, fiber:0 };
         todayRecipes.forEach(r => {
+            sum.calories += r.nutrients.calories || 0;
             sum.protein += r.nutrients.protein || 0;
             sum.zinc += r.nutrients.zinc || 0;
             sum.omega3 += r.nutrients.omega3 || 0;
             sum.vitaminA += r.nutrients.vitaminA || 0;
             sum.iron += r.nutrients.iron || 0;
             sum.vitaminB12 += r.nutrients.vitaminB12 || 0;
+            sum.vitaminC += r.nutrients.vitaminC || 0;
+            sum.vitaminD += r.nutrients.vitaminD || 0;
+            sum.vitaminE += r.nutrients.vitaminE || 0;
+            sum.biotin += r.nutrients.biotin || 0;
+            sum.magnesium += r.nutrients.magnesium || 0;
+            sum.fiber += r.nutrients.fiber || 0;
         });
+
+        // Generate Macro Progress Bars
+        const macros = [
+            { key: 'calories', label: 'Calories', unit: 'kcal' },
+            { key: 'protein', label: 'Protein', unit: 'g' },
+            { key: 'zinc', label: 'Zinc', unit: 'mg' },
+            { key: 'omega3', label: 'Omega-3', unit: 'mg' },
+            { key: 'vitaminA', label: 'Vit A', unit: 'mcg' },
+            { key: 'magnesium', label: 'Magnesium', unit: 'mg' }
+        ];
+
+        let html = `<div class="card-header-row" style="margin-top:24px; margin-bottom:12px;"><h2>Daily Nutrition</h2></div>`;
+        html += `<div class="glass-card stagger-item" style="padding: 16px; margin-bottom: 24px; display:flex; flex-direction:column; gap:12px;">`;
+        
+        macros.forEach(m => {
+            const target = DAILY_TARGETS[m.key] || 1;
+            const current = sum[m.key] || 0;
+            let pct = Math.min(100, Math.round((current / target) * 100));
+            const color = pct >= 100 ? '#10b981' : 'var(--primary)';
+            
+            html += `
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:4px; color:var(--text);">
+                        <span><strong>${m.label}</strong></span>
+                        <span style="color:var(--text-muted);">${Math.round(current)} / ${target} ${m.unit} (${pct}%)</span>
+                    </div>
+                    <div class="progress-bar-bg" style="height:6px;">
+                        <div class="progress-bar-fill" style="width: ${pct}%; background: ${color};"></div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
 
         const gaps = [];
         if (sum.zinc < DAILY_TARGETS.zinc * 0.7) gaps.push(`Zinc (${DAILY_TARGETS.zinc}mg)`);
@@ -434,7 +474,7 @@
         if (DAILY_TARGETS.biotin > 0 && sum.biotin < DAILY_TARGETS.biotin * 0.7) gaps.push(`Biotin (${DAILY_TARGETS.biotin}mcg)`);
         if (sum.magnesium < DAILY_TARGETS.magnesium * 0.7) gaps.push(`Magnesium (${DAILY_TARGETS.magnesium}mg)`);
 
-        let html = `<div class="card-header-row" style="margin-top:24px;"><h2>${t('suggested_supplements')}</h2></div>`;
+        html += `<div class="card-header-row" style="margin-top:24px;"><h2>${t('suggested_supplements')}</h2></div>`;
         if (gaps.length === 0) {
             html += `<div class="glass-card-sm stagger-item"><div class="empty-state-text">${t('targets_hit')}</div></div>`;
         } else {
