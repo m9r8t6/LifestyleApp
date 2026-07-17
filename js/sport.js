@@ -562,12 +562,11 @@
         try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
         const bw = profile.weight || 75;
 
-        // Big 3 mappings
-        const metricsMap = {
-            'bench press': { int: 1.0, adv: 1.5 },
-            'squat': { int: 1.3, adv: 1.8 },
-            'deadlift': { int: 1.5, adv: 2.0 }
-        };
+        const b3Config = profile.big3 || [
+            { name: 'Bench Press', int: 1.0, adv: 1.5 },
+            { name: 'Squat', int: 1.3, adv: 1.8 },
+            { name: 'Deadlift', int: 1.5, adv: 2.0 }
+        ];
 
         const sortedKeys = Object.keys(sportHistory).sort((a,b) => sportHistory[b].length - sportHistory[a].length);
         if (sortedKeys.length === 0) return;
@@ -588,8 +587,13 @@
             let communityMetric = '';
             const exKey = exName.toLowerCase();
             let metricData = null;
-            for(const key of Object.keys(metricsMap)) {
-                if (exKey.includes(key)) { metricData = metricsMap[key]; break; }
+            
+            // Check if this exercise matches one of the user's custom Big 3
+            for(const lift of b3Config) {
+                if (lift.name && exKey.includes(lift.name.toLowerCase())) {
+                    metricData = lift;
+                    break;
+                }
             }
             
             if (metricData) {
