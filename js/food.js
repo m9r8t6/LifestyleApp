@@ -911,14 +911,14 @@ The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TAR
 Here is the catalog of available recipes (choose from these IDs):
 ${JSON.stringify(catalog)}
 
-Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs. Do not include markdown formatting, markdown code blocks, or any other text.`;
+Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs. Do not include markdown formatting.`;
 
             const response = await fetch('https://api.deepseek.com/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                 body: JSON.stringify({
                     model: "deepseek-chat",
-                    messages: [ { role: "system", content: prompt } ],
+                    messages: [ { role: "system", content: sysPrompt } ],
                     temperature: 0.1
                 })
             });
@@ -927,8 +927,12 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
             if (data.error) throw new Error(data.error.message || 'API Error');
 
             let content = data.choices[0].message.content.trim();
-            if (content.startsWith('\`\`\`json')) content = content.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
-            else if (content.startsWith('\`\`\`')) content = content.replace(/\`\`\`/g, '').trim();
+            const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (match) {
+                content = match[1].trim();
+            } else {
+                content = content.replace(/\`\`\`/g, '').trim();
+            }
 
             const plan = JSON.parse(content);
 
@@ -1027,10 +1031,11 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
             const data = await response.json();
             
             let content = data.choices[0].message.content.trim();
-            if (content.startsWith('\`\`\`json')) {
-                content = content.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
-            } else if (content.startsWith('\`\`\`')) {
-                content = content.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+            const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (match) {
+                content = match[1].trim();
+            } else {
+                content = content.replace(/\`\`\`/g, '').trim();
             }
 
             const parsed = JSON.parse(content);
