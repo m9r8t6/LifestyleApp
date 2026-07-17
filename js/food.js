@@ -1049,7 +1049,7 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
             }
 
             const parsed = JSON.parse(content);
-            parsed.id = generateId();
+            parsed.id = 'c_' + Date.now().toString(36);
             parsed.isCustom = true;
             
             showReviewModal(parsed);
