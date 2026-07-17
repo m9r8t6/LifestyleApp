@@ -372,6 +372,33 @@ window.GamificationModule = (() => {
                         </div>
                     </div>
                 `).join('')}
+
+                <!-- Weekly Consistency Chart -->
+                <div style="margin-top:24px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Consistency</h4>
+                    <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 80px; padding: 12px 8px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        ${(() => {
+                            const today = App.getToday();
+                            const historyDays = [];
+                            for (let i = 6; i >= 0; i--) {
+                                const d = new Date(today);
+                                d.setDate(d.getDate() - i);
+                                const dateStr = d.toISOString().slice(0, 10);
+                                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+                                const score = (data.history && data.history[dateStr] && data.history[dateStr].score !== undefined) ? data.history[dateStr].score : 0;
+                                historyDays.push({ day: dayName, score: score, isToday: i === 0 });
+                            }
+                            return historyDays.map(hd => `
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; width: 12%;">
+                                    <div style="width: 100%; height: 50px; display: flex; align-items: flex-end; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                                        <div style="width: 100%; height: ${hd.score}%; background: ${hd.isToday ? 'var(--primary-light)' : 'var(--primary)'}; opacity: ${hd.isToday ? '1' : '0.7'}; border-radius: 4px; transition: height 0.5s ease-out;"></div>
+                                    </div>
+                                    <span style="font-size: 0.65rem; color: ${hd.isToday ? 'var(--text)' : 'var(--text-muted)'}; font-weight: ${hd.isToday ? 'bold' : 'normal'};">${hd.day}</span>
+                                </div>
+                            `).join('');
+                        })()}
+                    </div>
+                </div>
             </div>
         `;
     }

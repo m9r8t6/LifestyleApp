@@ -2,6 +2,7 @@
     const STORAGE_SCHEDULE = 'lifeos_workout_schedule';
     const STORAGE_COMPLETION = 'lifeos_workout_completion';
     const STORAGE_TIMER = 'lifeos_timer_duration';
+    const STORAGE_HISTORY = 'lifeos_sport_history';
 
     const DEFAULT_SCHEDULE = {
         1: { type: 'chest', exercises: [
@@ -46,6 +47,7 @@
     let schedule = {};
     let completion = { date: '', completed: [] }; // array of exercise IDs
     let selectedDayIndex = 1;
+    let sportHistory = {}; // { "Bench Press": [{date, weight}] }
 
     // Timer state
     let timerDuration = 180; // seconds
@@ -77,6 +79,9 @@
             timerRemaining = timerDuration;
         }
 
+        const storedHistory = localStorage.getItem(STORAGE_HISTORY);
+        if (storedHistory) sportHistory = JSON.parse(storedHistory);
+
         const today = window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10);
         if (completion.date !== today) {
             completion = { date: today, completed: [] };
@@ -98,6 +103,10 @@
 
     function saveTimer() {
         localStorage.setItem(STORAGE_TIMER, timerDuration.toString());
+    }
+
+    function saveSportHistory() {
+        localStorage.setItem(STORAGE_HISTORY, JSON.stringify(sportHistory));
     }
 
     // --- Timer Logic ---
@@ -322,6 +331,8 @@
         const todayIndex = window.App ? window.App.getDayOfWeek() : new Date().getDay();
         const todayPlan = schedule[todayIndex];
 
+        renderAnalytics();
+
         // 1. Today's Workout
         if (todayContainer) {
             let tHtml = `
@@ -362,6 +373,22 @@
                     } else {
                         completion.completed.push(exId);
                         item.classList.add('checked');
+                        
+                        const exName = item.querySelector('.checklist-text').textContent;
+                        let lastW = '';
+                        if (sportHistory[exName] && sportHistory[exName].length > 0) {
+                            lastW = sportHistory[exName][sportHistory[exName].length - 1].weight;
+                        }
+                        
+                        setTimeout(() => {
+                            const w = prompt(`Weight lifted today for ${exName}? (e.g. 60)`, lastW || '');
+                            if (w !== null && w.trim() !== '') {
+                                if (!sportHistory[exName]) sportHistory[exName] = [];
+                                sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: parseFloat(w) });
+                                saveSportHistory();
+                                renderAnalytics();
+                            }
+                        }, 50);
                     }
                     saveCompletion();
                     if(window.App && window.App.onCompletionChange) window.App.onCompletionChange();
@@ -480,6 +507,57 @@
                 if(window.App.refreshDashboard) window.App.refreshDashboard();
             });
         });
+    }
+
+    function renderAnalytics() {
+        const container = document.getElementById('sport-analytics');
+        if (!container) return;
+        
+        const validExs = Object.keys(sportHistory).filter(name => sportHistory[name].length > 1);
+        
+        if (validExs.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        validExs.sort((a,b) => sportHistory[b].length - sportHistory[a].length);
+        const topExs = validExs.slice(0, 2);
+        
+        let html = `
+            <div class="card-header-row" style="margin-top:24px; margin-bottom:12px;">
+                <div class="section-title" style="margin:0"><div class="section-title-icon" style="background:rgba(139, 92, 246, 0.15); color: #c4b5fd;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><h2>Strength Progress</h2></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+        `;
+        
+        topExs.forEach(exName => {
+            const dataPts = sportHistory[exName].slice(-5);
+            const minW = Math.min(...dataPts.map(d => d.weight));
+            const maxW = Math.max(...dataPts.map(d => d.weight));
+            const range = maxW - minW || 1;
+            
+            html += `
+                <div class="glass-card-sm">
+                    <div style="font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:8px;">${exName}</div>
+                    <div style="display:flex; align-items:flex-end; justify-content:space-between; height:70px; padding-top:10px;">
+                        ${dataPts.map(d => {
+                            const pct = ((d.weight - minW) / range) * 80 + 20;
+                            return `
+                                <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:18%;">
+                                    <span style="font-size:0.6rem; color:var(--text); font-weight:bold;">${d.weight}</span>
+                                    <div style="width:100%; height:50px; display:flex; align-items:flex-end; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                                        <div style="width:100%; height:${pct}%; background:var(--primary); opacity:0.8; border-radius:4px; transition: height 0.5s ease-out;"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+        container.innerHTML = html;
     }
 
     function showAddExerciseModal() {

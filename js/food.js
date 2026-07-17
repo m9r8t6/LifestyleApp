@@ -14,6 +14,10 @@
         iron: 15,         // mg
         vitaminB12: 2.4,  // mcg
         vitaminC: 90,     // mg
+        vitaminD: 15,     // mcg (health/testosterone)
+        vitaminE: 15,     // mg (skin healing)
+        biotin: 30,       // mcg (hair/eyebrows)
+        magnesium: 400,   // mg (sleep/muscle)
         fiber: 35         // g
     };
 
@@ -21,7 +25,7 @@
         {
             id: 'r1', name: 'Avocado on Dark Bread with Frozen Veggies', emoji: '🥑',
             prepTime: '10 min',
-            nutrients: { calories: 550, protein: 18, fiber: 16, zinc: 3, omega3: 500, vitaminA: 200, iron: 4, vitaminB12: 0, vitaminC: 40 },
+            nutrients: { calories: 550, protein: 18, fiber: 16, zinc: 3, omega3: 500, vitaminA: 200, iron: 4, vitaminB12: 0, vitaminC: 40, vitaminD: 0, vitaminE: 5, biotin: 8, magnesium: 120 },
             ingredients: [
                 { name: 'Whole grain dark bread', amount: 2, unit: 'slices' },
                 { name: 'Avocado', amount: 1, unit: 'whole' },
@@ -33,7 +37,7 @@
         {
             id: 'r2', name: 'Whole Grain Pasta with Chickpea Salad', emoji: '🍝',
             prepTime: '15 min',
-            nutrients: { calories: 750, protein: 32, fiber: 18, zinc: 4, omega3: 200, vitaminA: 300, iron: 6, vitaminB12: 0, vitaminC: 30 },
+            nutrients: { calories: 750, protein: 32, fiber: 18, zinc: 4, omega3: 200, vitaminA: 300, iron: 6, vitaminB12: 0, vitaminC: 30, vitaminD: 0, vitaminE: 3, biotin: 10, magnesium: 150 },
             ingredients: [
                 { name: 'Whole grain pasta', amount: 150, unit: 'g' },
                 { name: 'Canned chickpeas', amount: 150, unit: 'g' },
@@ -46,7 +50,7 @@
         {
             id: 'r3', name: 'Bean Noodles with Olive-Tomato Dressing', emoji: '🍜',
             prepTime: '12 min',
-            nutrients: { calories: 600, protein: 35, fiber: 12, zinc: 4.5, omega3: 300, vitaminA: 400, iron: 5, vitaminB12: 0, vitaminC: 35 },
+            nutrients: { calories: 600, protein: 35, fiber: 12, zinc: 4.5, omega3: 300, vitaminA: 400, iron: 5, vitaminB12: 0, vitaminC: 35, vitaminD: 0, vitaminE: 4, biotin: 5, magnesium: 110 },
             ingredients: [
                 { name: 'Black bean noodles', amount: 100, unit: 'g' },
                 { name: 'Olives', amount: 50, unit: 'g' },
@@ -59,7 +63,7 @@
         {
             id: 'r4', name: 'Lentil Stew with Sweet Potato', emoji: '🍲',
             prepTime: '25 min',
-            nutrients: { calories: 650, protein: 28, fiber: 22, zinc: 5, omega3: 150, vitaminA: 1200, iron: 8, vitaminB12: 0, vitaminC: 50 },
+            nutrients: { calories: 650, protein: 28, fiber: 22, zinc: 5, omega3: 150, vitaminA: 1200, iron: 8, vitaminB12: 0, vitaminC: 50, vitaminD: 0, vitaminE: 2, biotin: 15, magnesium: 130 },
             ingredients: [
                 { name: 'Brown lentils (dry)', amount: 100, unit: 'g' },
                 { name: 'Sweet potato', amount: 200, unit: 'g' },
@@ -71,7 +75,7 @@
         {
             id: 'r5', name: 'Tofu Scramble with Spinach & Walnut', emoji: '🍳',
             prepTime: '10 min',
-            nutrients: { calories: 500, protein: 30, fiber: 8, zinc: 5, omega3: 2500, vitaminA: 600, iron: 7, vitaminB12: 1.2, vitaminC: 45 },
+            nutrients: { calories: 500, protein: 30, fiber: 8, zinc: 5, omega3: 2500, vitaminA: 600, iron: 7, vitaminB12: 1.2, vitaminC: 45, vitaminD: 10, vitaminE: 6, biotin: 12, magnesium: 140 },
             ingredients: [
                 { name: 'Firm tofu', amount: 200, unit: 'g' },
                 { name: 'Spinach', amount: 100, unit: 'g' },
@@ -84,7 +88,7 @@
         {
             id: 'r6', name: 'Overnight Oats with Chia & Hemp Seeds', emoji: '🥣',
             prepTime: '5 min',
-            nutrients: { calories: 600, protein: 24, fiber: 14, zinc: 4, omega3: 3500, vitaminA: 100, iron: 5, vitaminB12: 0.5, vitaminC: 10 },
+            nutrients: { calories: 600, protein: 24, fiber: 14, zinc: 4, omega3: 3500, vitaminA: 100, iron: 5, vitaminB12: 0.5, vitaminC: 10, vitaminD: 2, vitaminE: 4, biotin: 6, magnesium: 180 },
             ingredients: [
                 { name: 'Rolled oats', amount: 80, unit: 'g' },
                 { name: 'Soy milk', amount: 200, unit: 'ml' },
@@ -97,7 +101,7 @@
         {
             id: 'r7', name: 'Tempeh Stir-Fry with Broccoli', emoji: '🥢',
             prepTime: '15 min',
-            nutrients: { calories: 550, protein: 35, fiber: 10, zinc: 6, omega3: 400, vitaminA: 800, iron: 6, vitaminB12: 0, vitaminC: 85 },
+            nutrients: { calories: 550, protein: 35, fiber: 10, zinc: 6, omega3: 400, vitaminA: 800, iron: 6, vitaminB12: 0, vitaminC: 85, vitaminD: 0, vitaminE: 2, biotin: 10, magnesium: 160 },
             ingredients: [
                 { name: 'Tempeh', amount: 150, unit: 'g' },
                 { name: 'Broccoli', amount: 200, unit: 'g' },
@@ -109,7 +113,7 @@
         {
             id: 'r8', name: 'Quinoa Bowl with Edamame & Pumpkin Seeds', emoji: '🥗',
             prepTime: '20 min',
-            nutrients: { calories: 680, protein: 32, fiber: 15, zinc: 7, omega3: 800, vitaminA: 150, iron: 8, vitaminB12: 0, vitaminC: 25 },
+            nutrients: { calories: 680, protein: 32, fiber: 15, zinc: 7, omega3: 800, vitaminA: 150, iron: 8, vitaminB12: 0, vitaminC: 25, vitaminD: 0, vitaminE: 8, biotin: 5, magnesium: 200 },
             ingredients: [
                 { name: 'Quinoa (dry)', amount: 80, unit: 'g' },
                 { name: 'Edamame (shelled)', amount: 100, unit: 'g' },
@@ -121,7 +125,7 @@
         {
             id: 'r9', name: 'High-Protein Green Smoothie', emoji: '🥤',
             prepTime: '5 min',
-            nutrients: { calories: 450, protein: 30, fiber: 10, zinc: 3, omega3: 2000, vitaminA: 900, iron: 5, vitaminB12: 1.2, vitaminC: 60 },
+            nutrients: { calories: 450, protein: 30, fiber: 10, zinc: 3, omega3: 2000, vitaminA: 900, iron: 5, vitaminB12: 1.2, vitaminC: 60, vitaminD: 5, vitaminE: 6, biotin: 10, magnesium: 110 },
             ingredients: [
                 { name: 'Vegan protein powder', amount: 1, unit: 'scoop' },
                 { name: 'Spinach', amount: 100, unit: 'g' },
@@ -265,6 +269,12 @@
                     <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
                     <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
                     <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(234, 179, 8, 0.1); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.2);">Vit A: ${r.nutrients.vitaminA || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(249, 115, 22, 0.1); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.2);">Vit C: ${r.nutrients.vitaminC || 0}mg</span>
+                    <span class="recipe-tag" style="background: rgba(250, 204, 21, 0.1); color: #fef08a; border: 1px solid rgba(250, 204, 21, 0.2);">Vit D: ${r.nutrients.vitaminD || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(163, 230, 53, 0.1); color: #d9f99d; border: 1px solid rgba(163, 230, 53, 0.2);">Vit E: ${r.nutrients.vitaminE || 0}mg</span>
+                    <span class="recipe-tag" style="background: rgba(236, 72, 153, 0.1); color: #fbcfe8; border: 1px solid rgba(236, 72, 153, 0.2);">Biotin: ${r.nutrients.biotin || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(168, 85, 247, 0.1); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.2);">Magnesium: ${r.nutrients.magnesium || 0}mg</span>
                 </div>
                 <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
                 <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
@@ -299,6 +309,9 @@
                     </div>
                     <h2>${t('todays_meals')}</h2>
                 </div>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: #c4b5fd; font-size:0.75rem;">
+                    AI Plan 🤖
+                </button>
             </div>
         `;
 
@@ -543,6 +556,36 @@
                     <input type="number" step="0.1" id="recipe-b12" class="form-input" value="0">
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Vit A (mcg)</label>
+                    <input type="number" step="1" id="recipe-vita" class="form-input" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vit C (mg)</label>
+                    <input type="number" step="1" id="recipe-vitc" class="form-input" value="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Vit D (mcg)</label>
+                    <input type="number" step="0.1" id="recipe-vitd" class="form-input" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vit E (mg)</label>
+                    <input type="number" step="0.1" id="recipe-vite" class="form-input" value="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Biotin (mcg)</label>
+                    <input type="number" step="1" id="recipe-biotin" class="form-input" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Magnesium (mg)</label>
+                    <input type="number" step="1" id="recipe-mag" class="form-input" value="0">
+                </div>
+            </div>
         `;
         const footerHTML = `
             <button class="btn btn-ghost" onclick="App.hideModal()">Cancel</button>
@@ -615,7 +658,7 @@
                         messages: [
                             {
                                 role: "system",
-                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato', 'tomatoe' -> 'Tomato') so they group cleanly on a grocery list. Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, AND an array key 'standardizedIngredients' containing objects exactly like {amount: number, unit: string, name: string}. Do not include markdown formatting."
+                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato', 'tomatoe' -> 'Tomato') so they group cleanly on a grocery list. Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, vitaminA, vitaminC, vitaminD, vitaminE, biotin, magnesium, AND an array key 'standardizedIngredients' containing objects exactly like {amount: number, unit: string, name: string}. Do not include markdown formatting."
                             },
                             {
                                 role: "user",
@@ -649,6 +692,12 @@
                 if (result.omega3 !== undefined) document.getElementById('recipe-omega').value = Math.round(result.omega3);
                 if (result.iron !== undefined) document.getElementById('recipe-iron').value = result.iron;
                 if (result.vitaminB12 !== undefined) document.getElementById('recipe-b12').value = result.vitaminB12;
+                if (result.vitaminA !== undefined) document.getElementById('recipe-vita').value = Math.round(result.vitaminA);
+                if (result.vitaminC !== undefined) document.getElementById('recipe-vitc').value = Math.round(result.vitaminC);
+                if (result.vitaminD !== undefined) document.getElementById('recipe-vitd').value = result.vitaminD;
+                if (result.vitaminE !== undefined) document.getElementById('recipe-vite').value = result.vitaminE;
+                if (result.biotin !== undefined) document.getElementById('recipe-biotin').value = Math.round(result.biotin);
+                if (result.magnesium !== undefined) document.getElementById('recipe-mag').value = Math.round(result.magnesium);
                 
                 if (result.standardizedIngredients && Array.isArray(result.standardizedIngredients)) {
                     window.currentRecipeIngredients = result.standardizedIngredients;
@@ -677,6 +726,12 @@
             const omega3 = parseInt(document.getElementById('recipe-omega').value) || 0;
             const iron = parseFloat(document.getElementById('recipe-iron').value) || 0;
             const b12 = parseFloat(document.getElementById('recipe-b12').value) || 0;
+            const vita = parseInt(document.getElementById('recipe-vita').value) || 0;
+            const vitc = parseInt(document.getElementById('recipe-vitc').value) || 0;
+            const vitd = parseFloat(document.getElementById('recipe-vitd').value) || 0;
+            const vite = parseFloat(document.getElementById('recipe-vite').value) || 0;
+            const biotin = parseInt(document.getElementById('recipe-biotin').value) || 0;
+            const mag = parseInt(document.getElementById('recipe-mag').value) || 0;
             
             const inst = document.getElementById('recipe-inst').value.trim();
 
@@ -696,7 +751,7 @@
                 name,
                 emoji,
                 prepTime,
-                nutrients: { calories: cal, protein: pro, fiber: 10, zinc: zinc, omega3: omega3, vitaminA: 100, iron: iron, vitaminB12: b12, vitaminC: 10 },
+                nutrients: { calories: cal, protein: pro, fiber: 10, zinc: zinc, omega3: omega3, vitaminA: vita, iron: iron, vitaminB12: b12, vitaminC: vitc, vitaminD: vitd, vitaminE: vite, biotin: biotin, magnesium: mag },
                 ingredients: ingredients,
                 instructions: inst || 'Custom recipe.',
                 isCustom: true
@@ -734,10 +789,97 @@
         return { completed: done, total: mealIds.length };
     }
 
+    async function generateAIPlan() {
+        const apiKey = localStorage.getItem('lifeos_deepseek_key');
+        if (!apiKey) {
+            if(window.App && window.App.showToast) window.App.showToast('Please add your DeepSeek API key in Settings to use the AI Meal Planner.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-ai-plan');
+        if(btn) {
+            btn.innerHTML = 'Planning... ⏳';
+            btn.disabled = true;
+        }
+
+        try {
+            const today = getToday();
+            // We want to plan today + next 6 days
+            const targetDates = [];
+            for (let i = 0; i < 7; i++) {
+                targetDates.push(addDays(today, i));
+            }
+
+            // Prepare recipe catalog for AI
+            const catalog = recipes.map(r => ({
+                id: r.id,
+                name: r.name,
+                calories: r.nutrients.calories,
+                protein: r.nutrients.protein,
+                zinc: r.nutrients.zinc,
+                omega3: r.nutrients.omega3,
+                vitaminA: r.nutrients.vitaminA || 0,
+                iron: r.nutrients.iron
+            }));
+
+            const prompt = `You are an expert nutritionist. Your task is to select exactly 3 meals for each day over a 7-day period.
+The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
+Here is the catalog of available recipes (choose from these IDs):
+${JSON.stringify(catalog)}
+
+Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs. Do not include markdown formatting, markdown code blocks, or any other text.`;
+
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({
+                    model: "deepseek-chat",
+                    messages: [ { role: "system", content: prompt } ],
+                    temperature: 0.1
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message || 'API Error');
+
+            let content = data.choices[0].message.content.trim();
+            if (content.startsWith('\`\`\`json')) content = content.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+            else if (content.startsWith('\`\`\`')) content = content.replace(/\`\`\`/g, '').trim();
+
+            const plan = JSON.parse(content);
+
+            // Merge into mealPlan
+            let updated = false;
+            for (const date of targetDates) {
+                if (plan[date] && Array.isArray(plan[date]) && plan[date].length === 3) {
+                    mealPlan[date] = plan[date];
+                    updated = true;
+                }
+            }
+
+            if (updated) {
+                savePlan();
+                renderSection();
+                if(window.App && window.App.showToast) window.App.showToast('AI perfectly balanced your meals for the next 7 days!', 'success');
+            } else {
+                throw new Error('Invalid JSON format from AI.');
+            }
+
+        } catch (err) {
+            console.error('AI Plan Error:', err);
+            if(window.App && window.App.showToast) window.App.showToast('Failed to generate AI plan. Check API key or try again.', 'error');
+        } finally {
+            if(btn) {
+                btn.innerHTML = 'AI Plan 🤖';
+                btn.disabled = false;
+            }
+        }
+    }
+
     function init() {
         loadData();
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe };
+    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan };
 
 })();
