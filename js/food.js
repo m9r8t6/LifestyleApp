@@ -312,6 +312,11 @@
                 </ul>
                 <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
                 <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions}</p>
+                <div style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; display: flex; justify-content: flex-end;">
+                    <button class="btn btn-sm btn-ghost" onclick="FoodModule.showSwapModal('${r.id}')" style="font-size:0.75rem; color:var(--text-muted); border: 1px solid rgba(255,255,255,0.2);">
+                        🔄 Swap Meal
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -865,6 +870,46 @@
         return { completed: done, total: mealIds.length };
     }
 
+    function showSwapModal(oldRecipeId) {
+        if (!window.App) return;
+        
+        let html = `<div style="max-height: 400px; overflow-y: auto; padding-right:8px; display:flex; flex-direction:column; gap:8px;">`;
+        recipes.forEach(r => {
+            if (r.id === oldRecipeId) return;
+            html += `
+                <div class="glass-card-sm" style="padding:12px; cursor:pointer;" onclick="FoodModule.swapMeal('${oldRecipeId}', '${r.id}')">
+                    <div style="font-weight:600; font-size:0.9rem;">${r.emoji} ${r.name}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">${r.nutrients.calories} kcal • ${r.nutrients.protein}g Protein</div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+
+        window.App.showModal('Swap Meal', html, '<button class="btn btn-ghost" onclick="App.hideModal()">Cancel</button>');
+    }
+
+    function swapMeal(oldRecipeId, newRecipeId) {
+        const today = getToday();
+        if (mealPlan[today]) {
+            const idx = mealPlan[today].indexOf(oldRecipeId);
+            if (idx !== -1) {
+                mealPlan[today][idx] = newRecipeId;
+                savePlan();
+            }
+        }
+        
+        // Remove old recipe from completion if it was checked
+        const compIdx = completion.completed.indexOf(oldRecipeId);
+        if (compIdx !== -1) {
+            completion.completed.splice(compIdx, 1);
+            saveCompletion();
+        }
+
+        window.App.hideModal();
+        renderSection();
+        if (window.App.refreshDashboard) window.App.refreshDashboard();
+    }
+
     async function generateAIPlan() {
         const apiKey = localStorage.getItem('lifeos_deepseek_key');
         if (!apiKey) {
@@ -1142,6 +1187,6 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
         });
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe };
+    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal };
 
 })();
