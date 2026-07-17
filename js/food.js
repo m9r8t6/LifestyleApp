@@ -1031,13 +1031,14 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
                         { role: 'system', content: sysPrompt },
                         { role: 'user', content: 'Give me a new recipe.' }
                     ],
+                    response_format: { type: "json_object" },
                     temperature: 0.7,
-                    max_tokens: 1000
+                    max_tokens: 1500
                 })
             });
 
-            if (!response.ok) throw new Error('API Error');
             const data = await response.json();
+            if (data.error) throw new Error(data.error.message || 'API Error');
             
             let content = data.choices[0].message.content.trim();
             const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -1053,9 +1054,9 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
             
             showReviewModal(parsed);
 
-        } catch(e) {
-            console.error(e);
-            if(window.App) window.App.showToast('Failed to generate recipe. Check API key or try again.', 'error');
+        } catch (err) {
+            console.error('Recommend Recipe Error:', err);
+            if(window.App) window.App.showToast(`Failed: ${err.message}`, 'error');
         } finally {
             if(btn) {
                 btn.innerHTML = 'Recommend Recipe';
