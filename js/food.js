@@ -901,9 +901,11 @@
             let profile = {};
             try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
             const diet = profile.diet || 'vegetarian';
+            const budget = profile.budget || 'standard';
 
             const sysPrompt = `You are a world-class nutritionist AI.
 The user's dietary restriction is: ${diet}.
+Their budget preference is: ${budget} (if cheap, prioritize lower-cost recipes).
 They need a 7-day meal plan chosen ONLY from the exact list of recipes provided below.
 The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
 Here is the catalog of available recipes (choose from these IDs):
@@ -978,11 +980,13 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
         let profile = {};
         try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
         const diet = profile.diet || 'vegetarian';
+        const budget = profile.budget || 'standard';
 
         const existingNames = recipes.map(r => r.name).join(', ');
 
         const sysPrompt = `You are a world-class nutritionist AI. The user wants a NEW, delicious, easy-to-cook recipe to add to their library.
 Their dietary restriction is: ${diet}.
+Their budget preference is: ${budget} (if cheap, strictly limit to low-cost ingredients).
 They already have these recipes, do NOT duplicate them: ${existingNames}.
 Their personal daily nutritional targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg, Vit C: ${DAILY_TARGETS.vitaminC}mg, Vit D: ${DAILY_TARGETS.vitaminD}mcg, Vit E: ${DAILY_TARGETS.vitaminE}mg, Biotin: ${DAILY_TARGETS.biotin}mcg, Magnesium: ${DAILY_TARGETS.magnesium}mg, Fiber: ${DAILY_TARGETS.fiber}g.
 The recipe should be roughly 1/3 of these targets.
