@@ -5,21 +5,51 @@
     const STORAGE_PLAN = 'lifeos_meal_plan'; // { date: mealIds[] }
     const STORAGE_COMPLETION = 'lifeos_meal_completion';
 
-    const DAILY_TARGETS = {
-        calories: 2700,
-        protein: 130,     // g
-        zinc: 20,         // mg (high for acne)
-        omega3: 2000,     // mg (high for acne)
-        vitaminA: 900,    // mcg (acne/skin)
-        iron: 15,         // mg
-        vitaminB12: 2.4,  // mcg
-        vitaminC: 90,     // mg
-        vitaminD: 15,     // mcg (health/testosterone)
-        vitaminE: 15,     // mg (skin healing)
-        biotin: 30,       // mcg (hair/eyebrows)
-        magnesium: 400,   // mg (sleep/muscle)
-        fiber: 35         // g
-    };
+    let DAILY_TARGETS = {};
+
+    function updateDailyTargets() {
+        const defaultProfile = { sex: 'male', age: 25, weight: 75, height: 180, goals: { muscle: false, skin: false, hair: false } };
+        let profile = defaultProfile;
+        try {
+            const stored = localStorage.getItem('lifeos_profile');
+            if (stored) profile = JSON.parse(stored);
+        } catch(e) {}
+
+        let bmr = 0;
+        if (profile.sex === 'male') {
+            bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age) + 5;
+        } else {
+            bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age) - 161;
+        }
+
+        let cals = Math.round(bmr * 1.55);
+        if (profile.goals && profile.goals.muscle) cals += 300;
+
+        let protein = Math.round((profile.goals && profile.goals.muscle ? 2.0 : 1.6) * profile.weight);
+        let zinc = (profile.goals && profile.goals.skin) ? 15 : (profile.sex === 'male' ? 11 : 8);
+        let omega3 = (profile.goals && profile.goals.skin) ? 2000 : 1000;
+        let vitaminA = (profile.goals && profile.goals.skin) ? 900 : 700;
+        let biotin = (profile.goals && profile.goals.hair) ? 30 : 0;
+        let magnesium = (profile.goals && profile.goals.muscle) ? 400 : 300;
+
+        DAILY_TARGETS = {
+            calories: cals,
+            protein: protein,
+            zinc: zinc,
+            omega3: omega3,
+            vitaminA: vitaminA,
+            iron: 15,
+            vitaminB12: 2.4,
+            vitaminC: 90,
+            vitaminD: 15,
+            vitaminE: 15,
+            biotin: biotin,
+            magnesium: magnesium,
+            fiber: 35
+        };
+    }
+
+    updateDailyTargets();
 
     const PROTOTYPE_RECIPES = [
         {
@@ -397,10 +427,12 @@
         });
 
         const gaps = [];
-        if (sum.zinc < DAILY_TARGETS.zinc * 0.7) gaps.push('Zinc (15-20mg)');
-        if (sum.omega3 < DAILY_TARGETS.omega3 * 0.7) gaps.push('Algae Omega-3 (1000mg)');
+        if (sum.zinc < DAILY_TARGETS.zinc * 0.7) gaps.push(`Zinc (${DAILY_TARGETS.zinc}mg)`);
+        if (sum.omega3 < DAILY_TARGETS.omega3 * 0.7) gaps.push(`Algae Omega-3 (${DAILY_TARGETS.omega3}mg)`);
         if (sum.vitaminB12 < DAILY_TARGETS.vitaminB12 * 0.7) gaps.push('Vitamin B12 (1000mcg)');
-        if (sum.vitaminA < DAILY_TARGETS.vitaminA * 0.7) gaps.push('Vitamin A (Skin support)');
+        if (sum.vitaminA < DAILY_TARGETS.vitaminA * 0.7) gaps.push(`Vitamin A (Skin support)`);
+        if (DAILY_TARGETS.biotin > 0 && sum.biotin < DAILY_TARGETS.biotin * 0.7) gaps.push(`Biotin (${DAILY_TARGETS.biotin}mcg)`);
+        if (sum.magnesium < DAILY_TARGETS.magnesium * 0.7) gaps.push(`Magnesium (${DAILY_TARGETS.magnesium}mg)`);
 
         let html = `<div class="card-header-row" style="margin-top:24px;"><h2>${t('suggested_supplements')}</h2></div>`;
         if (gaps.length === 0) {
@@ -880,6 +912,6 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
         loadData();
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan };
+    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets };
 
 })();

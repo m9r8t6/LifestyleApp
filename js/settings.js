@@ -17,6 +17,13 @@
         const soundOn = localStorage.getItem('lifeos_sound') !== 'off'; // default on
         const isLight = document.body.classList.contains('light-theme');
 
+        const defaultProfile = { sex: 'male', age: 25, weight: 75, height: 180, goals: { muscle: false, skin: false, hair: false } };
+        let profile = defaultProfile;
+        try {
+            const stored = localStorage.getItem('lifeos_profile');
+            if (stored) profile = JSON.parse(stored);
+        } catch(e) {}
+
         const html = `
             <div class="card-header-row">
                 <div class="section-title" style="margin:0">
@@ -58,6 +65,52 @@
                     <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Stored locally in your browser. Never synced or shared.</p>
                 </div>
             </div>
+
+            <div class="glass-card stagger-item" style="margin-top: 24px; margin-bottom: 24px;">
+                <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Personal Profile</h3>
+                <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:16px;">Used to dynamically calculate your daily nutritional targets.</p>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Sex</label>
+                        <select id="profile-sex" class="form-input" style="font-size:0.9rem;">
+                            <option value="male" ${profile.sex==='male'?'selected':''}>Male</option>
+                            <option value="female" ${profile.sex==='female'?'selected':''}>Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Age</label>
+                        <input type="number" id="profile-age" class="form-input" value="${profile.age}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Weight (kg)</label>
+                        <input type="number" step="0.1" id="profile-weight" class="form-input" value="${profile.weight}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Height (cm)</label>
+                        <input type="number" id="profile-height" class="form-input" value="${profile.height}">
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label class="form-label">Goals</label>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text);">
+                            <input type="checkbox" id="goal-muscle" ${profile.goals.muscle?'checked':''} style="width: 18px; height: 18px; accent-color: var(--primary);"> Muscle Gain
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text);">
+                            <input type="checkbox" id="goal-skin" ${profile.goals.skin?'checked':''} style="width: 18px; height: 18px; accent-color: var(--primary);"> Better Skin (Acne)
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text);">
+                            <input type="checkbox" id="goal-hair" ${profile.goals.hair?'checked':''} style="width: 18px; height: 18px; accent-color: var(--primary);"> Hair/Eyebrow Growth
+                        </label>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" id="btn-save-profile" style="width:100%; margin-top:24px;">Save Profile</button>
+            </div>
         `;
 
         container.innerHTML = html;
@@ -88,6 +141,28 @@
         document.getElementById('input-api-key')?.addEventListener('change', (e) => {
             localStorage.setItem('lifeos_deepseek_key', e.target.value.trim());
             if(window.App) window.App.showToast('API Key saved securely', 'success');
+        });
+
+        document.getElementById('btn-save-profile')?.addEventListener('click', () => {
+            const newProfile = {
+                sex: document.getElementById('profile-sex').value,
+                age: parseInt(document.getElementById('profile-age').value) || 25,
+                weight: parseFloat(document.getElementById('profile-weight').value) || 75,
+                height: parseInt(document.getElementById('profile-height').value) || 180,
+                goals: {
+                    muscle: document.getElementById('goal-muscle').checked,
+                    skin: document.getElementById('goal-skin').checked,
+                    hair: document.getElementById('goal-hair').checked
+                }
+            };
+            localStorage.setItem('lifeos_profile', JSON.stringify(newProfile));
+            if(window.App) window.App.showToast('Profile saved! Nutrition dynamically updated.', 'success');
+            
+            // If food module is initialized and we want to refresh its UI, we can trigger a re-render.
+            // A simple page reload is also extremely clean for PWA settings changes.
+            if(window.FoodModule && window.FoodModule.updateDailyTargets) {
+                window.FoodModule.updateDailyTargets();
+            }
         });
     }
 
