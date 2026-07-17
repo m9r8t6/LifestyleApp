@@ -500,9 +500,9 @@
         let html = `
             <div class="card-header-row" style="margin-top:24px;">
                 <h2>${t('recipe_library')}</h2>
-                <div style="display:flex; gap:8px;">
-                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd;">Recommend Recipe</button>
-                    <button class="btn btn-primary btn-sm" id="btn-add-recipe">${t('add_recipe')}</button>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">Recommend</button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-recipe" style="font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">${t('add_recipe')}</button>
                 </div>
             </div>
             <div class="recipe-grid stagger-item" style="margin-top: 12px;">
