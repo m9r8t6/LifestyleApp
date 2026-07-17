@@ -340,7 +340,7 @@
                     <h2>${t('todays_meals')}</h2>
                 </div>
                 <button type="button" class="btn btn-sm btn-ghost" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: #c4b5fd; font-size:0.75rem;">
-                    AI Plan 🤖
+                    AI Plan
                 </button>
             </div>
         `;
@@ -495,7 +495,10 @@
         let html = `
             <div class="card-header-row" style="margin-top:24px;">
                 <h2>${t('recipe_library')}</h2>
-                <button class="btn btn-primary btn-sm" id="btn-add-recipe">${t('add_recipe')}</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd;">Recommend Recipe</button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-recipe">${t('add_recipe')}</button>
+                </div>
             </div>
             <div class="recipe-grid stagger-item" style="margin-top: 12px;">
         `;
@@ -541,6 +544,7 @@
         container.innerHTML = html;
         
         document.getElementById('btn-add-recipe')?.addEventListener('click', showAddRecipeModal);
+        document.getElementById('btn-recommend-recipe')?.addEventListener('click', recommendNewRecipe);
     }
 
     function deleteRecipe(id) {
@@ -593,7 +597,7 @@
 
             <div style="margin: 16px 0; text-align: center;">
                 <button type="button" id="btn-calc-macros" class="btn btn-sm" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd;">
-                    Auto-Calculate Macros with AI 🤖
+                    Auto-Calculate Macros with AI
                 </button>
             </div>
             
@@ -893,8 +897,14 @@
                 vitaminA: r.nutrients.vitaminA || 0,
                 iron: r.nutrients.iron
             }));
+            
+            let profile = {};
+            try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
+            const diet = profile.diet || 'vegetarian';
 
-            const prompt = `You are an expert nutritionist. Your task is to select exactly 3 meals for each day over a 7-day period.
+            const sysPrompt = `You are a world-class nutritionist AI.
+The user's dietary restriction is: ${diet}.
+They need a 7-day meal plan chosen ONLY from the exact list of recipes provided below.
 The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
 Here is the catalog of available recipes (choose from these IDs):
 ${JSON.stringify(catalog)}
@@ -942,7 +952,7 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
             if(window.App && window.App.showToast) window.App.showToast('Failed to generate AI plan. Check API key or try again.', 'error');
         } finally {
             if(btn) {
-                btn.innerHTML = 'AI Plan 🤖';
+                btn.innerHTML = 'AI Plan';
                 btn.disabled = false;
             }
         }
@@ -952,6 +962,132 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
         loadData();
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets };
+    async function recommendNewRecipe() {
+        const apiKey = localStorage.getItem('lifeos_deepseek_key');
+        if (!apiKey) {
+            if(window.App) window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-recommend-recipe');
+        if(btn) {
+            btn.innerHTML = 'Thinking...';
+            btn.disabled = true;
+        }
+
+        let profile = {};
+        try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
+        const diet = profile.diet || 'vegetarian';
+
+        const existingNames = recipes.map(r => r.name).join(', ');
+
+        const sysPrompt = `You are a world-class nutritionist AI. The user wants a NEW, delicious, easy-to-cook recipe to add to their library.
+Their dietary restriction is: ${diet}.
+They already have these recipes, do NOT duplicate them: ${existingNames}.
+Their personal daily nutritional targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg, Vit C: ${DAILY_TARGETS.vitaminC}mg, Vit D: ${DAILY_TARGETS.vitaminD}mcg, Vit E: ${DAILY_TARGETS.vitaminE}mg, Biotin: ${DAILY_TARGETS.biotin}mcg, Magnesium: ${DAILY_TARGETS.magnesium}mg, Fiber: ${DAILY_TARGETS.fiber}g.
+The recipe should be roughly 1/3 of these targets.
+
+You MUST respond ONLY with a raw, valid JSON object exactly matching this structure (no markdown, no backticks, no extra text):
+{
+  "name": "Creative Recipe Name",
+  "emoji": "🍲",
+  "prepTime": "15 min",
+  "description": "A short, appetizing description.",
+  "instructions": "Step 1: ...\\nStep 2: ...",
+  "nutrients": { "calories": 500, "protein": 30, "fiber": 10, "zinc": 5, "omega3": 500, "vitaminA": 300, "iron": 5, "vitaminB12": 1, "vitaminC": 30, "vitaminD": 5, "vitaminE": 4, "biotin": 10, "magnesium": 100 },
+  "ingredients": [
+    { "name": "Ingredient Name", "amount": 100, "unit": "g" }
+  ]
+}
+`;
+
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'deepseek-chat',
+                    messages: [
+                        { role: 'system', content: sysPrompt },
+                        { role: 'user', content: 'Give me a new recipe.' }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: 1000
+                })
+            });
+
+            if (!response.ok) throw new Error('API Error');
+            const data = await response.json();
+            
+            let content = data.choices[0].message.content.trim();
+            if (content.startsWith('\`\`\`json')) {
+                content = content.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
+            } else if (content.startsWith('\`\`\`')) {
+                content = content.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+            }
+
+            const parsed = JSON.parse(content);
+            parsed.id = generateId();
+            parsed.isCustom = true;
+            
+            showReviewModal(parsed);
+
+        } catch(e) {
+            console.error(e);
+            if(window.App) window.App.showToast('Failed to generate recipe. Check API key or try again.', 'error');
+        } finally {
+            if(btn) {
+                btn.innerHTML = 'Recommend Recipe';
+                btn.disabled = false;
+            }
+        }
+    }
+
+    function showReviewModal(recipe) {
+        if (!window.App) return;
+
+        const bodyHTML = `
+            <div style="text-align: center; font-size: 3rem; margin-bottom: 8px;">${recipe.emoji}</div>
+            <h3 style="text-align: center; margin-top: 0;">${recipe.name}</h3>
+            <p style="text-align: center; font-size: 0.85rem; color: var(--text-muted);">${recipe.description}</p>
+            
+            <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:16px; font-size:0.75rem;">
+                <span class="recipe-tag">Calories: ${recipe.nutrients.calories}</span>
+                <span class="recipe-tag">Protein: ${recipe.nutrients.protein}g</span>
+                <span class="recipe-tag">Zinc: ${recipe.nutrients.zinc}mg</span>
+                <span class="recipe-tag">Omega-3: ${recipe.nutrients.omega3}mg</span>
+                <span class="recipe-tag">Prep: ${recipe.prepTime}</span>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text); text-align: left;">
+                <strong>Ingredients:</strong>
+                <ul style="margin: 4px 0 12px 0; padding-left: 18px;">
+                    ${recipe.ingredients.map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
+                </ul>
+                <strong>Instructions:</strong>
+                <p style="margin: 4px 0 0 0; white-space: pre-wrap;">${recipe.instructions}</p>
+            </div>
+        `;
+
+        const footerHTML = `
+            <button class="btn btn-ghost" onclick="App.hideModal()">Discard</button>
+            <button class="btn btn-primary" id="btn-approve-recipe">Add to Library</button>
+        `;
+
+        window.App.showModal('Review New Recipe', bodyHTML, footerHTML);
+
+        document.getElementById('btn-approve-recipe').addEventListener('click', () => {
+            recipes.unshift(recipe);
+            saveRecipes();
+            renderLibrary();
+            window.App.hideModal();
+            window.App.showToast('Recipe added to library!', 'success');
+        });
+    }
+
+    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe };
 
 })();

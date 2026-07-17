@@ -17,7 +17,7 @@
         const soundOn = localStorage.getItem('lifeos_sound') !== 'off'; // default on
         const isLight = document.body.classList.contains('light-theme');
 
-        const defaultProfile = { sex: 'male', age: 25, weight: 75, height: 180, goals: { muscle: false, skin: false, hair: false } };
+        const defaultProfile = { sex: 'male', age: 25, weight: 75, height: 180, diet: 'vegetarian', goals: { muscle: false, skin: false, hair: false } };
         let profile = defaultProfile;
         try {
             const stored = localStorage.getItem('lifeos_profile');
@@ -93,6 +93,16 @@
                         <input type="number" id="profile-height" class="form-input" value="${profile.height}">
                     </div>
                 </div>
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label">Dietary Restriction</label>
+                    <select id="profile-diet" class="form-input" style="font-size:0.9rem;">
+                        <option value="none" ${profile.diet==='none'?'selected':''}>None</option>
+                        <option value="vegetarian" ${profile.diet==='vegetarian'?'selected':''}>Vegetarian</option>
+                        <option value="vegan" ${profile.diet==='vegan'?'selected':''}>Vegan</option>
+                        <option value="pescetarian" ${profile.diet==='pescetarian'?'selected':''}>Pescetarian</option>
+                        <option value="gluten-free" ${profile.diet==='gluten-free'?'selected':''}>Gluten-Free</option>
+                    </select>
+                </div>
                 
                 <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
                     <label class="form-label">Goals</label>
@@ -149,6 +159,7 @@
                 age: parseInt(document.getElementById('profile-age').value) || 25,
                 weight: parseFloat(document.getElementById('profile-weight').value) || 75,
                 height: parseInt(document.getElementById('profile-height').value) || 180,
+                diet: document.getElementById('profile-diet').value,
                 goals: {
                     muscle: document.getElementById('goal-muscle').checked,
                     skin: document.getElementById('goal-skin').checked,
