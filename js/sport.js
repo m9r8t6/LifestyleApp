@@ -349,12 +349,21 @@
             } else {
                 todayPlan.exercises.forEach((ex, idx) => {
                     const isDone = completion.completed.includes(ex.id);
+                    let lastW = '';
+                    if (sportHistory[ex.name] && sportHistory[ex.name].length > 0) {
+                        lastW = sportHistory[ex.name][sportHistory[ex.name].length - 1].weight;
+                    }
+                    
                     tHtml += `
                         <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" data-ex-id="${ex.id}">
                             <div class="checklist-check">✓</div>
-                            <div class="checklist-content">
+                            <div class="checklist-content" style="flex: 1;">
                                 <div class="checklist-text">${ex.name}</div>
                                 <div class="checklist-sub">${ex.sets} sets × ${ex.reps} ${ex.weight ? '| '+ex.weight : ''}</div>
+                            </div>
+                            <div class="weight-input-container" style="display:flex; align-items:center; gap:4px;" onclick="event.stopPropagation()">
+                                <input type="number" step="0.1" class="weight-input" placeholder="kg" style="width:50px; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:var(--text); font-size:0.85rem; outline:none;" value="${lastW}" />
+                                <button class="btn-save-weight" style="background:var(--primary); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:0.8rem; cursor:pointer;">Save</button>
                             </div>
                         </div>
                     `;
@@ -373,26 +382,33 @@
                     } else {
                         completion.completed.push(exId);
                         item.classList.add('checked');
-                        
-                        const exName = item.querySelector('.checklist-text').textContent;
-                        let lastW = '';
-                        if (sportHistory[exName] && sportHistory[exName].length > 0) {
-                            lastW = sportHistory[exName][sportHistory[exName].length - 1].weight;
-                        }
-                        
-                        setTimeout(() => {
-                            const w = prompt(`Weight lifted today for ${exName}? (e.g. 60)`, lastW || '');
-                            if (w !== null && w.trim() !== '') {
-                                if (!sportHistory[exName]) sportHistory[exName] = [];
-                                sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: parseFloat(w) });
-                                saveSportHistory();
-                                renderAnalytics();
-                            }
-                        }, 50);
                     }
                     saveCompletion();
                     if(window.App && window.App.onCompletionChange) window.App.onCompletionChange();
                 });
+                
+                const saveBtn = item.querySelector('.btn-save-weight');
+                const inputField = item.querySelector('.weight-input');
+                if (saveBtn && inputField) {
+                    saveBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const exName = item.querySelector('.checklist-text').textContent;
+                        const w = inputField.value;
+                        if (w.trim() !== '') {
+                            if (!sportHistory[exName]) sportHistory[exName] = [];
+                            sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: parseFloat(w) });
+                            saveSportHistory();
+                            renderAnalytics();
+                            
+                            saveBtn.textContent = '✓';
+                            saveBtn.style.background = '#10b981';
+                            setTimeout(() => {
+                                saveBtn.textContent = 'Save';
+                                saveBtn.style.background = 'var(--primary)';
+                            }, 2000);
+                        }
+                    });
+                }
             });
         }
 
