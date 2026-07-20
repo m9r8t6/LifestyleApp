@@ -148,44 +148,78 @@ window.App = (() => {
     // ── Navigation ───────────────────────────────────────
 
     function _setupNavigation() {
-        const navBtns   = document.querySelectorAll('.nav-btn[data-section], .nav-btn-today[data-section]');
+        const navBtns   = Array.from(document.querySelectorAll('.nav-btn[data-section], .nav-btn-today[data-section]'));
         const sections  = document.querySelectorAll('.app-section');
         const titleEl   = document.getElementById('header-title');
 
+        function switchTab(btn) {
+            const target = btn.dataset.section;
+
+            // Toggle active class on nav buttons
+            navBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Toggle active class on sections
+            sections.forEach(s => s.classList.remove('active'));
+            const targetSection = document.getElementById(`section-${target}`);
+            if (targetSection) targetSection.classList.add('active');
+
+            // Update header title
+            if (titleEl) titleEl.textContent = SECTION_TITLES[target] || 'LifeOS';
+
+            // Re-render the target module's section for fresh data
+            if (target === 'dashboard') {
+                refreshDashboard();
+            } else if (target === 'food' && modules.food) {
+                modules.food.renderSection();
+            } else if (target === 'sport' && modules.sport) {
+                modules.sport.renderSection();
+            } else if (target === 'bodycare' && modules.bodycare) {
+                modules.bodycare.renderSection();
+            } else if (target === 'calendar' && modules.calendar) {
+                modules.calendar.renderSection();
+            } else if (target === 'chat' && modules.chat) {
+                modules.chat.renderSection();
+            } else if (target === 'settings' && modules.settings) {
+                modules.settings.renderSection();
+            }
+        }
+
         navBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const target = btn.dataset.section;
-
-                // Toggle active class on nav buttons
-                navBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                // Toggle active class on sections
-                sections.forEach(s => s.classList.remove('active'));
-                const targetSection = document.getElementById(`section-${target}`);
-                if (targetSection) targetSection.classList.add('active');
-
-                // Update header title
-                if (titleEl) titleEl.textContent = SECTION_TITLES[target] || 'LifeOS';
-
-                // Re-render the target module's section for fresh data
-                if (target === 'dashboard') {
-                    refreshDashboard();
-                } else if (target === 'food' && modules.food) {
-                    modules.food.renderSection();
-                } else if (target === 'sport' && modules.sport) {
-                    modules.sport.renderSection();
-                } else if (target === 'bodycare' && modules.bodycare) {
-                    modules.bodycare.renderSection();
-                } else if (target === 'calendar' && modules.calendar) {
-                    modules.calendar.renderSection();
-                } else if (target === 'chat' && modules.chat) {
-                    modules.chat.renderSection();
-                } else if (target === 'settings' && modules.settings) {
-                    modules.settings.renderSection();
-                }
-            });
+            btn.addEventListener('click', () => switchTab(btn));
         });
+
+        // Swipe Navigation
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            mainContent.addEventListener('touchstart', e => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+
+            mainContent.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                
+                const threshold = 50; 
+                const dx = touchEndX - touchStartX;
+                
+                // Check if it's a horizontal swipe (skip if too small)
+                if (Math.abs(dx) < threshold) return;
+
+                const activeIdx = navBtns.findIndex(b => b.classList.contains('active'));
+                if (activeIdx === -1) return;
+
+                if (dx < 0 && activeIdx < navBtns.length - 1) {
+                    // Swiped left -> next tab
+                    switchTab(navBtns[activeIdx + 1]);
+                } else if (dx > 0 && activeIdx > 0) {
+                    // Swiped right -> prev tab
+                    switchTab(navBtns[activeIdx - 1]);
+                }
+            }, { passive: true });
+        }
     }
 
     // ── Modal system ─────────────────────────────────────
