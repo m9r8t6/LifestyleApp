@@ -60,10 +60,25 @@
                 </div>
 
                 <div class="form-group" style="margin-top: 24px; margin-bottom: 0;">
-                    <label class="form-label">DeepSeek API Key (AI Recipe Macros)</label>
+                    <label class="form-label">DeepSeek API Key (AI Recipe Macros & Chat)</label>
                     <input type="password" id="input-api-key" class="form-input" value="${localStorage.getItem('lifeos_deepseek_key') || ''}" placeholder="sk-..." style="font-family: monospace;">
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Stored locally in your browser. Never synced or shared.</p>
                 </div>
+                
+                <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+                    <label class="form-label">HuggingFace API Token (For RAG Embeddings)</label>
+                    <input type="password" id="input-hf-key" class="form-input" value="${localStorage.getItem('lifeos_hf_token') || ''}" placeholder="hf_..." style="font-family: monospace;">
+                </div>
+
+                <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+                    <label class="form-label">Google Cloud Client ID (For Drive RAG)</label>
+                    <input type="text" id="input-google-client" class="form-input" value="${localStorage.getItem('lifeos_google_client_id') || ''}" placeholder="...apps.googleusercontent.com" style="font-family: monospace;">
+                </div>
+
+                <div style="margin-top: 16px; display:flex; gap:8px;">
+                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="width:100%; border:1px dashed var(--accent); color:var(--accent);">Connect Google Drive</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-sync-drive" style="width:100%; border:1px dashed var(--primary-light); color:var(--primary-light); display:none;">Sync to Drive</button>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">Keys are stored locally in your browser. Never synced or shared.</p>
             </div>
 
             <div class="glass-card stagger-item" style="margin-top: 24px; margin-bottom: 24px;">
@@ -215,7 +230,25 @@
 
         document.getElementById('input-api-key')?.addEventListener('change', (e) => {
             localStorage.setItem('lifeos_deepseek_key', e.target.value.trim());
-            if(window.App) window.App.showToast('API Key saved securely', 'success');
+            if(window.App) window.App.showToast('DeepSeek API Key saved', 'success');
+        });
+        
+        document.getElementById('input-hf-key')?.addEventListener('change', (e) => {
+            localStorage.setItem('lifeos_hf_token', e.target.value.trim());
+            if(window.App) window.App.showToast('HuggingFace Token saved', 'success');
+        });
+
+        document.getElementById('input-google-client')?.addEventListener('change', (e) => {
+            localStorage.setItem('lifeos_google_client_id', e.target.value.trim());
+            if(window.App) window.App.showToast('Google Client ID saved', 'success');
+        });
+
+        document.getElementById('btn-auth-drive')?.addEventListener('click', () => {
+            if (window.RAGModule) window.RAGModule.authGoogle();
+        });
+
+        document.getElementById('btn-sync-drive')?.addEventListener('click', () => {
+            if (window.RAGModule) window.RAGModule.syncToDrive();
         });
 
         document.getElementById('btn-save-profile')?.addEventListener('click', () => {

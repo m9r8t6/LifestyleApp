@@ -70,13 +70,24 @@ ${JSON.stringify(bodycare)}
         if (!container) return;
 
         let html = '';
+        
+        // Add RAG control bar at the top
+        html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:8px; margin-bottom:12px;">
+                <div style="font-size:0.8rem; color:var(--text-muted);">
+                    Drive Vector DB: <strong style="color:${window.RAGModule && window.RAGModule.hasVectors ? 'var(--success)' : 'var(--error)'}">${window.RAGModule && window.RAGModule.hasVectors ? 'Active' : 'Empty/Not Connected'}</strong>
+                </div>
+                <button class="btn btn-sm" onclick="if(window.RAGModule) window.RAGModule.pickAndIngestDriveFile()" style="background:var(--primary-light); color:white; font-size:0.75rem; padding:4px 8px;">+ Ingest File</button>
+            </div>
+        `;
+
         if (messages.length === 0) {
-            html = `<div style="text-align:center; color:var(--text-muted); margin-top:40px; font-size:0.9rem;">No messages yet. Ask me about your data!</div>`;
+            html += `<div style="text-align:center; color:var(--text-muted); margin-top:40px; font-size:0.9rem;">No messages yet. Ask me about your data!</div>`;
         } else {
             messages.forEach(msg => {
                 const isUser = msg.role === 'user';
                 html += `
-                    <div style="display:flex; justify-content:${isUser ? 'flex-end' : 'flex-start'};">
+                    <div style="display:flex; justify-content:${isUser ? 'flex-end' : 'flex-start'}; margin-bottom:12px;">
                         <div style="max-width:80%; padding:10px 14px; border-radius:16px; font-size:0.9rem; line-height:1.4; white-space:pre-wrap; 
                             background:${isUser ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; 
                             color:${isUser ? '#fff' : 'var(--text)'};
@@ -115,7 +126,7 @@ ${JSON.stringify(bodycare)}
         const container = document.getElementById('chat-messages');
         const loadingId = 'loading-' + Date.now();
         container.insertAdjacentHTML('beforeend', `
-            <div id="${loadingId}" style="display:flex; justify-content:flex-start; margin-top:12px;">
+            <div id="${loadingId}" style="display:flex; justify-content:flex-start; margin-bottom:12px;">
                 <div style="max-width:80%; padding:10px 14px; border-radius:16px; font-size:0.9rem; background:rgba(255,255,255,0.05); color:var(--text-muted); border-bottom-left-radius:4px; border: 1px solid rgba(255,255,255,0.1);">
                     <span style="animation: pulse 1.5s infinite;">Thinking...</span>
                 </div>
@@ -124,8 +135,19 @@ ${JSON.stringify(bodycare)}
         container.scrollTop = container.scrollHeight;
 
         try {
+            // Check RAG for relevant context
+            let ragContext = "";
+            if (window.RAGModule && window.RAGModule.hasVectors) {
+                const results = await window.RAGModule.search(text, 3);
+                if (results.length > 0) {
+                    ragContext = "\n\n--- EXTERNAL KNOWLEDGE FROM DRIVE ---\n" + 
+                        results.map(r => `[Source: ${r.source}]\n${r.text}`).join('\n\n');
+                }
+            }
+
             // Prepare API payload
-            const sysPrompt = buildSystemPrompt();
+            let sysPrompt = buildSystemPrompt();
+            sysPrompt += ragContext;
             
             // Limit history to last 10 messages to save context
             const historyToInclude = messages.slice(-10);
