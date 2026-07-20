@@ -18,6 +18,7 @@ window.App = (() => {
         food:      'Food',
         sport:     'Sport',
         bodycare:  'Care',
+        calendar:  'Calendar',
     };
 
     // ── Module registry (populated during init) ──────────
@@ -25,6 +26,7 @@ window.App = (() => {
         food:         null,
         sport:        null,
         bodycare:     null,
+        calendar:     null,
         gamification: null,
         settings:     null,
     };
@@ -111,6 +113,7 @@ window.App = (() => {
         if (modules.food && typeof modules.food.renderDashboard === 'function') modules.food.renderDashboard();
         if (modules.sport && typeof modules.sport.renderDashboard === 'function') modules.sport.renderDashboard();
         if (modules.bodycare && typeof modules.bodycare.renderDashboard === 'function') modules.bodycare.renderDashboard();
+        if (modules.calendar && typeof modules.calendar.renderDashboard === 'function') modules.calendar.renderDashboard();
         if (modules.gamification && typeof modules.gamification.recalculate === 'function') modules.gamification.recalculate();
         if (modules.settings && typeof modules.settings.renderDashboard === 'function') modules.settings.renderDashboard();
     }
@@ -172,6 +175,8 @@ window.App = (() => {
                     modules.sport.renderSection();
                 } else if (target === 'bodycare' && modules.bodycare) {
                     modules.bodycare.renderSection();
+                } else if (target === 'calendar' && modules.calendar) {
+                    modules.calendar.renderSection();
                 } else if (target === 'settings' && modules.settings) {
                     modules.settings.renderSection();
                 }
@@ -294,6 +299,7 @@ window.App = (() => {
         modules.food         = window.FoodModule         || null;
         modules.sport        = window.SportModule        || null;
         modules.bodycare     = window.BodycareModule     || null;
+        modules.calendar     = window.CalendarModule     || null;
         modules.gamification = window.GamificationModule || null;
         modules.settings     = window.SettingsModule     || null;
 
@@ -302,6 +308,7 @@ window.App = (() => {
             modules.food,
             modules.sport,
             modules.bodycare,
+            modules.calendar,
             modules.settings,
             modules.gamification,
         ];

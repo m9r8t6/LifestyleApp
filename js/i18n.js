@@ -49,7 +49,13 @@
             strength_progress: "Strength Progress",
             achievements: "Achievements",
             level: "Level",
-            meal_prep_strategy: "Meal Prep Strategy"
+            meal_prep_strategy: "Meal Prep Strategy",
+            nav_calendar: "Calendar",
+            add_event: "+ Add Event",
+            upcoming_events: "Upcoming Events",
+            event_notes: "Event Notes",
+            prep_notes: "Prep Notes",
+            prepare_with_ai: "Prepare with AI"
         },
         de: {
             nav_today: 'Heute',
@@ -98,7 +104,13 @@
             strength_progress: "Kraftfortschritte",
             achievements: "Erfolge",
             level: "Level",
-            meal_prep_strategy: "Meal-Prep Strategie"
+            meal_prep_strategy: "Meal-Prep Strategie",
+            nav_calendar: "Kalender",
+            add_event: "+ Termin hinzufügen",
+            upcoming_events: "Anstehende Termine",
+            event_notes: "Termin-Notizen",
+            prep_notes: "Vorbereitungsnotizen",
+            prepare_with_ai: "Mit AI vorbereiten"
         }
     };
 
