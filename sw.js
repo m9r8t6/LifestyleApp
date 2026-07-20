@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifeos-v19';
+const CACHE_NAME = 'lifeos-v20';
 const ASSETS = [
     './',
     './index.html',

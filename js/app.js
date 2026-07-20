@@ -19,6 +19,7 @@ window.App = (() => {
         sport:     'Sport',
         bodycare:  'Care',
         calendar:  'Calendar',
+        chat:      'Assistant',
     };
 
     // ── Module registry (populated during init) ──────────
@@ -27,6 +28,7 @@ window.App = (() => {
         sport:        null,
         bodycare:     null,
         calendar:     null,
+        chat:         null,
         gamification: null,
         settings:     null,
     };
@@ -177,6 +179,8 @@ window.App = (() => {
                     modules.bodycare.renderSection();
                 } else if (target === 'calendar' && modules.calendar) {
                     modules.calendar.renderSection();
+                } else if (target === 'chat' && modules.chat) {
+                    modules.chat.renderSection();
                 } else if (target === 'settings' && modules.settings) {
                     modules.settings.renderSection();
                 }
@@ -300,6 +304,7 @@ window.App = (() => {
         modules.sport        = window.SportModule        || null;
         modules.bodycare     = window.BodycareModule     || null;
         modules.calendar     = window.CalendarModule     || null;
+        modules.chat         = window.ChatModule         || null;
         modules.gamification = window.GamificationModule || null;
         modules.settings     = window.SettingsModule     || null;
 
@@ -309,6 +314,7 @@ window.App = (() => {
             modules.sport,
             modules.bodycare,
             modules.calendar,
+            modules.chat,
             modules.settings,
             modules.gamification,
         ];

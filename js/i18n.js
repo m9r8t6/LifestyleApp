@@ -55,7 +55,8 @@
             upcoming_events: "Upcoming Events",
             event_notes: "Event Notes",
             prep_notes: "Prep Notes",
-            prepare_with_ai: "Prepare with AI"
+            prepare_with_ai: "Prepare with AI",
+            nav_chat: "Chat"
         },
         de: {
             nav_today: 'Heute',
@@ -110,7 +111,8 @@
             upcoming_events: "Anstehende Termine",
             event_notes: "Termin-Notizen",
             prep_notes: "Vorbereitungsnotizen",
-            prepare_with_ai: "Mit AI vorbereiten"
+            prepare_with_ai: "Mit AI vorbereiten",
+            nav_chat: "Chat"
         }
     };
 
