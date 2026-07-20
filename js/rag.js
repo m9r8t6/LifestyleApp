@@ -78,6 +78,8 @@
                 if (btnSync) btnSync.style.display = 'block';
                 const btnRestore = document.getElementById('btn-restore-drive');
                 if (btnRestore) btnRestore.style.display = 'block';
+                const btnAuth = document.getElementById('btn-auth-drive');
+                if (btnAuth) btnAuth.textContent = 'Drive Connected ✅';
 
                 ensureDriveFolder().then(() => loadVectorsFromDrive());
             },

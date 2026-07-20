@@ -75,9 +75,9 @@
                 </div>
 
                 <div style="margin-top: 16px; display:flex; gap:8px;">
-                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="flex:1; border:1px dashed var(--accent); color:var(--accent);">Connect Google Drive</button>
-                    <button class="btn btn-secondary btn-sm" id="btn-sync-drive" style="flex:1; border:1px dashed var(--primary-light); color:var(--primary-light); display:none;">Sync to Drive</button>
-                    <button class="btn btn-secondary btn-sm" id="btn-restore-drive" style="flex:1; border:1px dashed var(--warning, #f59e0b); color:var(--warning, #f59e0b); display:none;">Restore from Drive</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="flex:1; border:1px dashed var(--accent); color:var(--accent);">${window.RAGModule && window.RAGModule.isReady ? 'Drive Connected ✅' : 'Connect Google Drive'}</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-sync-drive" style="flex:1; border:1px dashed var(--primary-light); color:var(--primary-light); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Sync to Drive</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-restore-drive" style="flex:1; border:1px dashed var(--warning, #f59e0b); color:var(--warning, #f59e0b); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Restore from Drive</button>
                 </div>
                 <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">Keys are stored locally in your browser. Never synced or shared.</p>
             </div>
