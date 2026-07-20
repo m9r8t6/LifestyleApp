@@ -186,9 +186,9 @@
         });
     }
 
-    async function syncToDrive() {
+    async function syncToDrive(silent = false) {
         if (!accessToken || !driveFolderId) {
-            window.App.showToast('Please connect to Drive first', 'error');
+            if (!silent && window.App) window.App.showToast('Please connect to Drive first', 'error');
             return;
         }
         try {
@@ -216,10 +216,10 @@
                 body: form
             });
 
-            window.App.showToast('All LifeOS data securely synced to Drive!', 'success');
+            if (!silent && window.App) window.App.showToast('All LifeOS data securely synced to Drive!', 'success');
         } catch(e) {
             console.error(e);
-            window.App.showToast('Failed to sync', 'error');
+            if (!silent && window.App) window.App.showToast('Failed to sync', 'error');
         }
     }
 

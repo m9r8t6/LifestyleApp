@@ -366,6 +366,26 @@ window.App = (() => {
         });
     }
 
+    // ── Auto-sync to Drive ───────────────────────────────
+
+    function _setupAutoSync() {
+        const originalSetItem = localStorage.setItem;
+        let syncTimeout = null;
+
+        localStorage.setItem = function(key, value) {
+            originalSetItem.apply(this, arguments);
+            
+            // If the key is a lifeos data key and we are connected to drive
+            if (key.startsWith('lifeos_') && modules.rag && modules.rag.isReady) {
+                clearTimeout(syncTimeout);
+                // Debounce sync by 5 seconds
+                syncTimeout = setTimeout(() => {
+                    modules.rag.syncToDrive(true);
+                }, 5000);
+            }
+        };
+    }
+
     // ── Boot sequence (called on DOMContentLoaded) ───────
 
     function _boot() {
@@ -386,11 +406,14 @@ window.App = (() => {
 
         // 6. Initialize all modules
         _initModules();
+        
+        // 7. Setup auto-sync hook
+        _setupAutoSync();
 
-        // 7. Render dashboard widgets from each module
+        // 8. Render dashboard widgets from each module
         refreshDashboard();
 
-        // 8. Day-change detection (visibility API)
+        // 9. Day-change detection (visibility API)
         _setupDayChangeDetection();
     }
 
