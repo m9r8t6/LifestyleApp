@@ -7,8 +7,13 @@
     // Format: [{ text: "chunk", embedding: [0.1, 0.2, ...] }, ...]
 
     function init() {
-        // We defer GSI init to when the user clicks auth, 
-        // because we need the client ID from settings.
+        // Try auto-connect if previously connected
+        if (localStorage.getItem('lifeos_drive_auto_connect') === 'true') {
+            setTimeout(() => {
+                const clientId = localStorage.getItem('lifeos_google_client_id');
+                if (clientId) authGoogle(true);
+            }, 1000);
+        }
     }
 
     // --- MATH: Cosine Similarity ---
@@ -56,10 +61,10 @@
     }
 
     // --- GOOGLE DRIVE AUTH ---
-    function authGoogle() {
+    function authGoogle(isAuto = false) {
         const clientId = localStorage.getItem('lifeos_google_client_id');
         if (!clientId) {
-            if(window.App) window.App.showToast('Please set Google Client ID first.', 'error');
+            if (!isAuto && window.App) window.App.showToast('Please set Google Client ID first.', 'error');
             return;
         }
 
@@ -68,10 +73,16 @@
             scope: 'https://www.googleapis.com/auth/drive.file',
             callback: (response) => {
                 if (response.error !== undefined) {
+                    if (isAuto) console.warn('Auto-auth failed:', response.error);
                     throw (response);
                 }
                 accessToken = response.access_token;
-                if(window.App) window.App.showToast('Connected to Google Drive!', 'success');
+                
+                // Remember that we connected successfully
+                localStorage.setItem('lifeos_drive_auto_connect', 'true');
+
+                if (!isAuto && window.App) window.App.showToast('Connected to Google Drive!', 'success');
+                else if (isAuto && window.App) window.App.showToast('Auto-connected to Drive', 'success');
                 
                 // Show sync and restore buttons
                 const btnSync = document.getElementById('btn-sync-drive');
@@ -83,8 +94,17 @@
 
                 ensureDriveFolder().then(() => loadVectorsFromDrive());
             },
+            error_callback: (err) => {
+                if (isAuto) console.warn('Auto-auth error. Popup blocked?', err);
+            }
         });
-        client.requestAccessToken();
+
+        // Trigger the auth
+        if (isAuto) {
+            client.requestAccessToken({ prompt: '' });
+        } else {
+            client.requestAccessToken();
+        }
     }
 
     async function gFetch(path, options = {}) {

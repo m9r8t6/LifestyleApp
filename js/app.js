@@ -307,6 +307,7 @@ window.App = (() => {
         modules.chat         = window.ChatModule         || null;
         modules.gamification = window.GamificationModule || null;
         modules.settings     = window.SettingsModule     || null;
+        modules.rag          = window.RAGModule          || null;
 
         // Initialize each module in the specified order
         const initOrder = [
@@ -317,6 +318,7 @@ window.App = (() => {
             modules.chat,
             modules.settings,
             modules.gamification,
+            modules.rag,
         ];
 
         initOrder.forEach(mod => {
