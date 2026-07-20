@@ -73,9 +73,11 @@
                 accessToken = response.access_token;
                 if(window.App) window.App.showToast('Connected to Google Drive!', 'success');
                 
-                // Show sync button
+                // Show sync and restore buttons
                 const btnSync = document.getElementById('btn-sync-drive');
                 if (btnSync) btnSync.style.display = 'block';
+                const btnRestore = document.getElementById('btn-restore-drive');
+                if (btnRestore) btnRestore.style.display = 'block';
 
                 ensureDriveFolder().then(() => loadVectorsFromDrive());
             },
@@ -168,13 +170,14 @@
             return;
         }
         try {
-            const backup = {
-                profile: localStorage.getItem('lifeos_profile'),
-                food: localStorage.getItem('lifeos_recipes'),
-                calendar: localStorage.getItem('lifeos_calendar_events'),
-                workout: localStorage.getItem('lifeos_workout_schedule'),
-                gamification: localStorage.getItem('lifeos_gamification')
-            };
+            // Backup ALL lifeos_ keys
+            const backup = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('lifeos_')) {
+                    backup[key] = localStorage.getItem(key);
+                }
+            }
 
             const filename = 'lifeos_backup.json';
             const fileId = await findFileInDrive(filename);
@@ -191,10 +194,41 @@
                 body: form
             });
 
-            window.App.showToast('LifeOS data synced to Drive!', 'success');
+            window.App.showToast('All LifeOS data securely synced to Drive!', 'success');
         } catch(e) {
             console.error(e);
             window.App.showToast('Failed to sync', 'error');
+        }
+    }
+
+    async function restoreFromDrive() {
+        if (!accessToken || !driveFolderId) {
+            window.App.showToast('Please connect to Drive first', 'error');
+            return;
+        }
+        if (!confirm("This will overwrite your current local data with the Drive backup. Proceed?")) return;
+        
+        try {
+            const fileId = await findFileInDrive('lifeos_backup.json');
+            if (!fileId) {
+                window.App.showToast('No backup found in Drive.', 'error');
+                return;
+            }
+            
+            const res = await gFetch(`/files/${fileId}?alt=media`);
+            const backup = await res.json();
+            
+            for (const key in backup) {
+                if (key.startsWith('lifeos_')) {
+                    localStorage.setItem(key, backup[key]);
+                }
+            }
+            
+            window.App.showToast('Data restored! Reloading app...', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch(e) {
+            console.error(e);
+            window.App.showToast('Failed to restore data', 'error');
         }
     }
 
@@ -297,6 +331,7 @@
         init, 
         authGoogle, 
         syncToDrive, 
+        restoreFromDrive,
         pickAndIngestDriveFile,
         search,
         get isReady() { return accessToken !== null; },
