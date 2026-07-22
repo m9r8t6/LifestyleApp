@@ -493,6 +493,19 @@
         container.innerHTML = html;
     }
 
+    let recipeSearchQuery = '';
+
+    function setRecipeSearchQuery(val) {
+        recipeSearchQuery = val.toLowerCase();
+        renderLibrary();
+        // Restore focus to input after render
+        const input = document.getElementById('recipe-search');
+        if (input) {
+            input.focus();
+            input.selectionStart = input.selectionEnd = input.value.length;
+        }
+    }
+
     function renderLibrary() {
         const container = document.getElementById('food-library');
         if (!container) return;
@@ -505,45 +518,59 @@
                     <button class="btn btn-primary btn-sm" id="btn-add-recipe" style="font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">${t('add_recipe')}</button>
                 </div>
             </div>
-            <div class="recipe-grid stagger-item" style="margin-top: 12px;">
+            <div style="margin-top: 12px; margin-bottom: 12px;">
+                <input type="text" id="recipe-search" class="form-input" placeholder="Search by name or ingredient..." value="${recipeSearchQuery}" oninput="FoodModule.setRecipeSearchQuery(this.value)">
+            </div>
+            <div class="recipe-grid stagger-item">
         `;
         
-        recipes.forEach((r, idx) => {
-            const tagsHtml = [];
-            if (r.nutrients.protein > 20) tagsHtml.push(`<span class="recipe-tag high-protein">High Protein</span>`);
-            if (r.nutrients.omega3 > 400) tagsHtml.push(`<span class="recipe-tag omega3">Omega-3</span>`);
-            if (r.nutrients.zinc > 3) tagsHtml.push(`<span class="recipe-tag zinc">Zinc</span>`);
-
-            html += `
-                <div class="recipe-item" style="animation-delay:${idx*30}ms; cursor:pointer;" onclick="FoodModule.toggleExpand('lib-${r.id}')">
-                    <div class="recipe-emoji">${r.emoji}</div>
-                    <div class="recipe-info">
-                        <div class="recipe-name">${r.name}</div>
-                        <div class="recipe-tags">${tagsHtml.join('')}</div>
-                    </div>
-                </div>
-                <div id="expand-lib-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
-                    <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
-                        <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
-                        <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
-                        <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
-                        <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
-                        <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
-                        <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
-                    </div>
-                    <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
-                    <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
-                        ${(r.ingredients || []).map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
-                    </ul>
-                    <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
-                    <p style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions || 'No instructions provided.'}</p>
-                    <div style="border-top: 1px solid var(--glass-border); padding-top: 12px; display: flex; justify-content: flex-end;">
-                        <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--error);" onclick="event.stopPropagation(); FoodModule.deleteRecipe('${r.id}')">Delete Recipe</button>
-                    </div>
-                </div>
-            `;
+        const filteredRecipes = recipes.filter(r => {
+            if (!recipeSearchQuery) return true;
+            if (r.name.toLowerCase().includes(recipeSearchQuery)) return true;
+            if (r.ingredients && r.ingredients.some(ing => ing.name.toLowerCase().includes(recipeSearchQuery))) return true;
+            return false;
         });
+
+        if (filteredRecipes.length === 0) {
+            html += `<div class="empty-state" style="grid-column: 1 / -1;"><div class="empty-state-text">No recipes found.</div></div>`;
+        } else {
+            filteredRecipes.forEach((r, idx) => {
+                const tagsHtml = [];
+                if (r.nutrients.protein > 20) tagsHtml.push(`<span class="recipe-tag high-protein">High Protein</span>`);
+                if (r.nutrients.omega3 > 400) tagsHtml.push(`<span class="recipe-tag omega3">Omega-3</span>`);
+                if (r.nutrients.zinc > 3) tagsHtml.push(`<span class="recipe-tag zinc">Zinc</span>`);
+
+                html += `
+                    <div class="recipe-item" style="animation-delay:${idx*30}ms; cursor:pointer;" onclick="FoodModule.toggleExpand('lib-${r.id}')">
+                        <div class="recipe-emoji">${r.emoji}</div>
+                        <div class="recipe-info">
+                            <div class="recipe-name">${r.name}</div>
+                            <div class="recipe-tags">${tagsHtml.join('')}</div>
+                        </div>
+                    </div>
+                    <div id="expand-lib-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
+                            <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
+                            <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
+                            <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
+                            <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
+                            <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
+                            <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
+                        </div>
+                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
+                        <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
+                            ${(r.ingredients || []).map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
+                        </ul>
+                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
+                        <p style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions || 'No instructions provided.'}</p>
+                        <div style="border-top: 1px solid var(--glass-border); padding-top: 12px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--error);" onclick="event.stopPropagation(); FoodModule.deleteRecipe('${r.id}')">Delete Recipe</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
         
         html += `</div>`;
         container.innerHTML = html;
@@ -1187,6 +1214,6 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
         });
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal };
+    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal, setRecipeSearchQuery };
 
 })();

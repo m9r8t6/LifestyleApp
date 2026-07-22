@@ -125,7 +125,10 @@
                     <h2 style="margin:0; min-width:130px; text-align:center;">${monthNames[month]} ${year}</h2>
                     <button class="btn btn-ghost" onclick="CalendarModule.nextMonth()" style="padding:4px 8px;">&rarr;</button>
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="CalendarModule.showAddEventModal()">${t('add_event')}</button>
+                <div style="display:flex; gap:8px;">
+                    ${window.RAGModule && window.RAGModule.isReady ? `<button class="btn btn-secondary btn-sm" onclick="CalendarModule.syncWithGoogle()" title="Sync with Google Calendar" style="padding:4px 8px;">🔄</button>` : ''}
+                    <button class="btn btn-primary btn-sm" onclick="CalendarModule.showAddEventModal()">${t('add_event')}</button>
+                </div>
             </div>
             
             <div class="glass-card-sm" style="padding: 16px; margin-bottom: 24px;">
@@ -238,6 +241,94 @@
         window.App.showModal('Add Event', html, '<button class="btn btn-primary" onclick="CalendarModule.addEvent()" style="width:100%;">Save Event</button>');
     }
 
+    async function syncWithGoogle() {
+        if (!window.RAGModule || !window.RAGModule.isReady) return;
+        const token = window.RAGModule.getAccessToken();
+        if (!token) return;
+
+        window.App.showToast('Syncing with Google Calendar...', 'info');
+
+        try {
+            const timeMin = new Date().toISOString();
+            let timeMax = new Date();
+            timeMax.setDate(timeMax.getDate() + 30);
+            
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax.toISOString())}&singleEvents=true&orderBy=startTime`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch from Google Calendar');
+            const data = await response.json();
+
+            let addedCount = 0;
+            data.items.forEach(gEvent => {
+                const dateStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(0, 10) : (gEvent.start.date ? gEvent.start.date : null);
+                const timeStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(11, 16) : '00:00';
+                
+                if (!dateStr) return;
+
+                const exists = events.find(e => e.title === gEvent.summary && e.date === dateStr);
+                if (!exists) {
+                    events.push({
+                        id: generateId(),
+                        title: gEvent.summary || 'Google Event',
+                        date: dateStr,
+                        time: timeStr,
+                        reminder: 'none',
+                        notes: '',
+                        prepNotes: ''
+                    });
+                    addedCount++;
+                }
+            });
+
+            saveEvents();
+            renderSection();
+            window.App.showToast(`Synced! Added ${addedCount} events from Google.`, 'success');
+        } catch (e) {
+            console.error(e);
+            window.App.showToast('Google Calendar sync failed', 'error');
+        }
+    }
+
+    async function pushToGoogleCalendar(ev) {
+        if (!window.RAGModule || !window.RAGModule.isReady) return;
+        const token = window.RAGModule.getAccessToken();
+        if (!token) return;
+
+        try {
+            const startDate = new Date(`${ev.date}T${ev.time || '00:00'}:00`);
+            const endDate = new Date(startDate.getTime() + 60*60000);
+
+            const overrides = [];
+            if (ev.reminder === '1h') overrides.push({ method: 'popup', minutes: 60 });
+            else if (ev.reminder === '1d') overrides.push({ method: 'popup', minutes: 24 * 60 });
+            
+            const remindersObj = overrides.length > 0 ? { useDefault: false, overrides } : { useDefault: true };
+
+            const gEvent = {
+                summary: ev.title,
+                description: 'Created by LifeOS',
+                start: { dateTime: startDate.toISOString() },
+                end: { dateTime: endDate.toISOString() },
+                reminders: remindersObj
+            };
+
+            await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(gEvent)
+            });
+            
+            window.App.showToast('Event pushed to Google Calendar!', 'success');
+        } catch (e) {
+            console.error('Failed to push to Google', e);
+        }
+    }
+
     function addEvent() {
         const title = document.getElementById('event-title').value.trim();
         const date = document.getElementById('event-date').value;
@@ -249,7 +340,7 @@
             return;
         }
 
-        events.push({
+        const newEv = {
             id: generateId(),
             title,
             date,
@@ -257,11 +348,14 @@
             reminder,
             notes: '',
             prepNotes: ''
-        });
+        };
+        events.push(newEv);
 
         saveEvents();
         window.App.hideModal();
         renderSection();
+        
+        pushToGoogleCalendar(newEv);
         
         // Trigger permission prompt if reminder set and not granted
         if (reminder !== 'none' && 'Notification' in window && Notification.permission !== 'granted') {
@@ -379,6 +473,6 @@ You MUST write the response in ${lang} language. Respond only with the notes, no
         }
     }
 
-    window.CalendarModule = { init, renderSection, renderDashboard, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI };
+    window.CalendarModule = { init, renderSection, renderDashboard, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI, syncWithGoogle };
 
 })();

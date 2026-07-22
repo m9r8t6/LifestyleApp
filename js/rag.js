@@ -70,7 +70,7 @@
 
         const client = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/drive.file',
+            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
             callback: (response) => {
                 if (response.error !== undefined) {
                     if (isAuto) console.warn('Auto-auth failed:', response.error);
@@ -356,6 +356,7 @@
         restoreFromDrive,
         pickAndIngestDriveFile,
         search,
+        getAccessToken: () => accessToken,
         get isReady() { return accessToken !== null; },
         get hasVectors() { return vectors.length > 0; }
     };
