@@ -77,7 +77,6 @@ ${JSON.stringify(bodycare)}
                 <div style="font-size:0.8rem; color:var(--text-muted);">
                     Drive Vector DB: <strong style="color:${window.RAGModule && window.RAGModule.hasVectors ? 'var(--success)' : 'var(--error)'}">${window.RAGModule && window.RAGModule.hasVectors ? 'Active' : 'Empty/Not Connected'}</strong>
                 </div>
-                <button class="btn btn-sm" onclick="if(window.RAGModule) window.RAGModule.pickAndIngestDriveFile()" style="background:var(--primary-light); color:white; font-size:0.75rem; padding:4px 8px;">+ Ingest File</button>
             </div>
         `;
 

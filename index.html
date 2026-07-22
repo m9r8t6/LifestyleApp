@@ -76,6 +76,11 @@
             <section id="section-chat" class="app-section" style="height:100%; padding-bottom:70px;">
                 <div style="display:flex; flex-direction:column; height:100%;">
                     <div id="chat-messages" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px;"></div>
+                    <div id="chat-suggestions" style="padding: 0 16px 8px 16px; display:flex; gap:8px; overflow-x:auto; white-space:nowrap; scrollbar-width:none;">
+                        <button onclick="document.getElementById('chat-input').value = this.innerText; document.getElementById('chat-input').focus();" style="font-size:0.75rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:8px 14px; color:var(--text); cursor:pointer; transition:background 0.2s;">Wie würdest du meine Gesundheit auf Basis meiner Sportroutine und Essensgewohnheiten beurteilen?</button>
+                        <button onclick="document.getElementById('chat-input').value = this.innerText; document.getElementById('chat-input').focus();" style="font-size:0.75rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:8px 14px; color:var(--text); cursor:pointer; transition:background 0.2s;">Was sollte ich heute noch essen, um meine Ziele zu erreichen?</button>
+                        <button onclick="document.getElementById('chat-input').value = this.innerText; document.getElementById('chat-input').focus();" style="font-size:0.75rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:8px 14px; color:var(--text); cursor:pointer; transition:background 0.2s;">Fasse mir kurz zusammen, was heute alles ansteht.</button>
+                    </div>
                     <div id="chat-input-area" class="glass-card-sm" style="margin:0 16px 16px 16px; padding:12px; display:flex; gap:8px;">
                         <textarea id="chat-input" class="form-input" style="flex:1; min-height:40px; max-height:120px; resize:none; padding:10px;" placeholder="Ask about your data..."></textarea>
                         <button id="btn-chat-send" class="btn btn-primary" style="align-self:flex-end; padding:10px 16px;">
