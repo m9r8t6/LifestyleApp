@@ -947,6 +947,14 @@ h4 { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-sp
     gap: 12px;
     width: 100%;
 }
+
+@media (max-width: 400px) {
+    /* Scale down bottom nav for 9 items on very narrow screens */
+    .nav-icon { width: 20px; height: 20px; }
+    .nav-label { font-size: 0.55rem; letter-spacing: 0; }
+    .nav-btn { padding: 6px 0; gap: 2px; }
+}
+
 .timer-main-btn {
     flex: 2;
     padding: 14px 24px;

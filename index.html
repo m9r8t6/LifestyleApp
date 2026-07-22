@@ -85,6 +85,16 @@
                 </div>
             </section>
 
+            <!-- Todo -->
+            <section id="section-todo" class="app-section">
+                <div id="todo-container" class="section-block"></div>
+            </section>
+
+            <!-- Mail -->
+            <section id="section-mail" class="app-section">
+                <div id="mail-container" class="section-block"></div>
+            </section>
+
             <!-- Settings -->
             <section id="section-settings" class="app-section">
                 <div id="settings-container" class="section-block"></div>
@@ -111,6 +121,15 @@
                 </svg>
                 <span class="nav-label">Sport</span>
             </button>
+            <button class="nav-btn" data-section="bodycare" id="nav-bodycare">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                    <line x1="9" y1="9" x2="9.01" y2="9"/>
+                    <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+                <span class="nav-label">Care</span>
+            </button>
             <button class="nav-btn" data-section="chat" id="nav-chat">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -127,14 +146,19 @@
                     </svg>
                 </button>
             </div>
-            <button class="nav-btn" data-section="bodycare" id="nav-bodycare">
+            <button class="nav-btn" data-section="todo" id="nav-todo">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-                    <line x1="9" y1="9" x2="9.01" y2="9"/>
-                    <line x1="15" y1="9" x2="15.01" y2="9"/>
+                    <polyline points="9 11 12 14 22 4"></polyline>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                 </svg>
-                <span class="nav-label">Care</span>
+                <span class="nav-label">Todo</span>
+            </button>
+            <button class="nav-btn" data-section="mail" id="nav-mail">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span class="nav-label">Mail</span>
             </button>
             <button class="nav-btn" data-section="calendar" id="nav-calendar">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -206,8 +230,10 @@
     <script src="js/calendar.js"></script>
     <script src="js/rag.js"></script>
     <script src="js/chat.js"></script>
-    <script src="js/settings.js"></script>
+    <script src="js/todo.js"></script>
+    <script src="js/mail.js"></script>
     <script src="js/gamification.js"></script>
+    <script src="js/settings.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

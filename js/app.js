@@ -116,6 +116,7 @@ window.App = (() => {
         if (modules.sport && typeof modules.sport.renderDashboard === 'function') modules.sport.renderDashboard();
         if (modules.bodycare && typeof modules.bodycare.renderDashboard === 'function') modules.bodycare.renderDashboard();
         if (modules.calendar && typeof modules.calendar.renderDashboard === 'function') modules.calendar.renderDashboard();
+        if (modules.todo && typeof modules.todo.renderDashboard === 'function') modules.todo.renderDashboard();
         if (modules.gamification && typeof modules.gamification.recalculate === 'function') modules.gamification.recalculate();
         if (modules.settings && typeof modules.settings.renderDashboard === 'function') modules.settings.renderDashboard();
     }
@@ -178,6 +179,10 @@ window.App = (() => {
                 modules.bodycare.renderSection();
             } else if (target === 'calendar' && modules.calendar) {
                 modules.calendar.renderSection();
+            } else if (target === 'todo' && modules.todo) {
+                modules.todo.renderSection();
+            } else if (target === 'mail' && modules.mail) {
+                modules.mail.renderSection();
             } else if (target === 'chat' && modules.chat) {
                 modules.chat.renderSection();
             } else if (target === 'settings' && modules.settings) {
@@ -294,6 +299,9 @@ window.App = (() => {
         if (modules.food)     modules.food.renderSection();
         if (modules.sport)    modules.sport.renderSection();
         if (modules.bodycare) modules.bodycare.renderSection();
+        if (modules.calendar) modules.calendar.renderSection();
+        if (modules.todo)     modules.todo.renderSection();
+        if (modules.mail)     modules.mail.renderSection();
 
         // Refresh dashboard
         refreshDashboard();
@@ -339,6 +347,8 @@ window.App = (() => {
         modules.bodycare     = window.BodycareModule     || null;
         modules.calendar     = window.CalendarModule     || null;
         modules.chat         = window.ChatModule         || null;
+        modules.todo         = window.TodoModule         || null;
+        modules.mail         = window.MailModule         || null;
         modules.gamification = window.GamificationModule || null;
         modules.settings     = window.SettingsModule     || null;
         modules.rag          = window.RAGModule          || null;
@@ -350,6 +360,8 @@ window.App = (() => {
             modules.bodycare,
             modules.calendar,
             modules.chat,
+            modules.todo,
+            modules.mail,
             modules.settings,
             modules.gamification,
             modules.rag,

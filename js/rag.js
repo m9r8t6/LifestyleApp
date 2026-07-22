@@ -70,7 +70,7 @@
 
         const client = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
+            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify',
             callback: (response) => {
                 if (response.error !== undefined) {
                     if (isAuto) console.warn('Auto-auth failed:', response.error);
