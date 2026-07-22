@@ -6,42 +6,12 @@
     const STORAGE_BODY_WEIGHT = 'lifeos_body_weight_history';
 
     const DEFAULT_SCHEDULE = {
-        1: { type: 'chest', exercises: [
-            {id: '1', name: 'Bench Press', sets: 4, reps: '10', weight: '60kg'},
-            {id: '2', name: 'Incline Dumbbell Press', sets: 3, reps: '12', weight: '20kg'},
-            {id: '3', name: 'Cable Flyes', sets: 3, reps: '15', weight: '15kg'},
-            {id: '4', name: 'Push-ups', sets: 3, reps: 'failure', weight: ''}
-        ] },
-        2: { type: 'back', exercises: [
-            {id: '5', name: 'Pull-ups', sets: 4, reps: '8', weight: ''},
-            {id: '6', name: 'Barbell Rows', sets: 4, reps: '10', weight: '50kg'},
-            {id: '7', name: 'Lat Pulldown', sets: 3, reps: '12', weight: '45kg'},
-            {id: '8', name: 'Face Pulls', sets: 3, reps: '15', weight: '15kg'}
-        ] },
-        3: { type: 'legs', exercises: [
-            {id: '9', name: 'Squats', sets: 4, reps: '10', weight: '80kg'},
-            {id: '10', name: 'Leg Press', sets: 3, reps: '12', weight: '120kg'},
-            {id: '11', name: 'Romanian Deadlift', sets: 3, reps: '10', weight: '60kg'},
-            {id: '12', name: 'Calf Raises', sets: 4, reps: '15', weight: '40kg'}
-        ] },
-        4: { type: 'chest', exercises: [
-            {id: '13', name: 'Dumbbell Bench Press', sets: 4, reps: '10', weight: '25kg'},
-            {id: '14', name: 'Dips', sets: 3, reps: '12', weight: ''},
-            {id: '15', name: 'Pec Deck', sets: 3, reps: '15', weight: '40kg'},
-            {id: '16', name: 'Diamond Push-ups', sets: 3, reps: 'failure', weight: ''}
-        ] },
-        5: { type: 'back', exercises: [
-            {id: '17', name: 'Deadlift', sets: 4, reps: '6', weight: '100kg'},
-            {id: '18', name: 'T-Bar Rows', sets: 3, reps: '10', weight: '40kg'},
-            {id: '19', name: 'Cable Rows', sets: 3, reps: '12', weight: '50kg'},
-            {id: '20', name: 'Rear Delt Flyes', sets: 3, reps: '15', weight: '10kg'}
-        ] },
-        6: { type: 'legs', exercises: [
-            {id: '21', name: 'Front Squats', sets: 4, reps: '10', weight: '60kg'},
-            {id: '22', name: 'Lunges', sets: 3, reps: '12', weight: '15kg'},
-            {id: '23', name: 'Leg Curl', sets: 3, reps: '12', weight: '30kg'},
-            {id: '24', name: 'Hip Thrusts', sets: 3, reps: '10', weight: '80kg'}
-        ] },
+        1: { type: 'chest', exercises: [] },
+        2: { type: 'back', exercises: [] },
+        3: { type: 'legs', exercises: [] },
+        4: { type: 'chest', exercises: [] },
+        5: { type: 'back', exercises: [] },
+        6: { type: 'legs', exercises: [] },
         0: { type: 'rest', exercises: [] }
     };
 
@@ -76,6 +46,12 @@
     function loadData() {
         const storedSchedule = localStorage.getItem(STORAGE_SCHEDULE);
         schedule = storedSchedule ? JSON.parse(storedSchedule) : DEFAULT_SCHEDULE;
+
+        // Auto-wipe old default schedule (if it starts with Bench Press) so user can start fresh
+        if (schedule[1] && schedule[1].exercises && schedule[1].exercises.length > 0 && schedule[1].exercises[0].name === 'Bench Press') {
+            schedule = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
+            saveSchedule();
+        }
 
         const storedCompletion = localStorage.getItem(STORAGE_COMPLETION);
         if (storedCompletion) completion = JSON.parse(storedCompletion);
