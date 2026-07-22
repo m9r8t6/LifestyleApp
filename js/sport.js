@@ -235,7 +235,7 @@
         // Then loop every 1.5 seconds until stopped
         beepInterval = setInterval(singleBeep, 1500);
 
-        if(window.App) window.App.showToast('Rest is over! Back to work 💪', 'success');
+        if(window.App) window.App.showToast('Rest is over! Back to work', 'success');
     }
 
     function stopBeep() {

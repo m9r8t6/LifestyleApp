@@ -186,7 +186,7 @@
                             <strong style="font-size:1rem; color:var(--primary-light);">${ev.title}</strong>
                             <span style="font-size:0.8rem; color:var(--text-muted);">${ev.date} at ${ev.time}</span>
                         </div>
-                        ${ev.prepNotes ? `<div style="font-size:0.8rem; color:var(--accent); margin-bottom:4px;">✨ Prep notes generated</div>` : ''}
+                        ${ev.prepNotes ? `<div style="font-size:0.8rem; color:var(--accent); margin-bottom:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Prep notes generated</div>` : ''}
                         ${ev.notes ? `<div style="font-size:0.8rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${ev.notes}</div>` : ''}
                     </div>
                 `;
@@ -375,7 +375,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <label class="form-label" style="margin:0;">${t('prep_notes')}</label>
                     <button class="btn btn-sm btn-ghost" onclick="CalendarModule.prepareWithAI('${ev.id}')" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: #c4b5fd; font-size:0.7rem; padding:4px 8px;" id="btn-prep-ai-${ev.id}">
-                        ✨ ${t('prepare_with_ai')}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> ${t('prepare_with_ai')}
                     </button>
                 </div>
                 <textarea id="event-prep-${ev.id}" class="form-input" style="min-height:80px; resize:vertical;" placeholder="AI will generate preparation notes here, or you can type your own...">${ev.prepNotes || ''}</textarea>
@@ -467,7 +467,7 @@ You MUST write the response in ${lang} language. Respond only with the notes, no
             window.App.showToast('Failed to generate prep notes.', 'error');
         } finally {
             if(btn) {
-                btn.innerHTML = `✨ ${t('prepare_with_ai')}`;
+                btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> ${t('prepare_with_ai')}`;
                 btn.disabled = false;
             }
         }

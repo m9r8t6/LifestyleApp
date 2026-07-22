@@ -359,7 +359,11 @@
             html += `<div class="empty-state"><div class="empty-state-text">Inbox is zero! 🎉</div></div>`;
         } else {
             const categories = ['work', 'shopping', 'other'];
-            const categoryLabels = { work: '💼 Work', shopping: '🛍️ Shopping', other: '📥 Other' };
+            const categoryLabels = { 
+                work: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg> Work', 
+                shopping: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg> Shopping', 
+                other: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg> Other' 
+            };
 
             categories.forEach(cat => {
                 const catEmails = emails.filter(e => e.category === cat);
@@ -370,7 +374,7 @@
                 html += `
                     <div style="margin-top: 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
                         <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-secondary);">${categoryLabels[cat]}</h3>
-                        ${unreadCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="MailModule.summarizeCategory('${cat}')" ${isSummarizingCategory[cat] ? 'disabled' : ''} style="font-size: 0.7rem; border-color: rgba(99,102,241,0.3); color: var(--primary-light);">${isSummarizingCategory[cat] ? 'Thinking...' : '✨ Summarize Unread'}</button>` : ''}
+                        ${unreadCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="MailModule.summarizeCategory('${cat}')" ${isSummarizingCategory[cat] ? 'disabled' : ''} style="font-size: 0.7rem; border-color: rgba(99,102,241,0.3); color: var(--primary-light);">${isSummarizingCategory[cat] ? 'Thinking...' : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize Unread'}</button>` : ''}
                     </div>
                 `;
 
@@ -411,8 +415,8 @@
                             <div id="expand-mail-${email.id}" style="display:none; border-top: 1px solid var(--glass-border); padding: 16px; background: rgba(0,0,0,0.2);">
                                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom: 16px;">
                                     <div style="display:flex; gap:8px;">
-                                        <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')">✨ Summarize</button>
-                                        <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')">✍️ Draft Reply</button>
+                                        <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize</button>
+                                        <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Draft Reply</button>
                                     </div>
                                     <input type="text" id="reply-inst-${email.id}" class="form-input" style="font-size: 0.8rem; padding: 6px 10px; background: rgba(255,255,255,0.05);" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
                                 </div>

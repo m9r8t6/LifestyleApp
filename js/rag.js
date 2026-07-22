@@ -79,9 +79,15 @@
         const btnRestore = document.getElementById('btn-restore-drive');
         if (btnRestore) btnRestore.style.display = 'block';
         const btnAuth = document.getElementById('btn-auth-drive');
-        if (btnAuth) btnAuth.textContent = 'Drive Connected ✅';
+        if (btnAuth) btnAuth.innerHTML = 'Drive Connected <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-left:4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
-        ensureDriveFolder().then(() => loadVectorsFromDrive()).catch(err => {
+        ensureDriveFolder().then(() => {
+            loadVectorsFromDrive();
+            // Auto-fetch emails on successful auth connection
+            if (window.MailModule && window.MailModule.fetchEmails) {
+                window.MailModule.fetchEmails();
+            }
+        }).catch(err => {
             console.error('Drive connection error:', err);
             // If the cached token was actually revoked, we should clear it
             if (err.message && err.message.includes('401')) {

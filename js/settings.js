@@ -75,7 +75,7 @@
                 </div>
 
                 <div style="margin-top: 16px; display:flex; gap:8px;">
-                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="flex:1; border:1px dashed var(--accent); color:var(--accent);">${window.RAGModule && window.RAGModule.isReady ? 'Drive Connected ✅' : 'Connect Google Drive'}</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="flex:1; border:1px dashed var(--accent); color:var(--accent);">${window.RAGModule && window.RAGModule.isReady ? 'Drive Connected <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-left:4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : 'Connect Google Drive'}</button>
                     <button class="btn btn-secondary btn-sm" id="btn-sync-drive" style="flex:1; border:1px dashed var(--primary-light); color:var(--primary-light); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Sync to Drive</button>
                     <button class="btn btn-secondary btn-sm" id="btn-restore-drive" style="flex:1; border:1px dashed var(--warning, #f59e0b); color:var(--warning, #f59e0b); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Restore from Drive</button>
                 </div>
@@ -150,26 +150,6 @@
                     </select>
                 </div>
                 
-                <div class="form-group" style="margin-top: 24px; margin-bottom: 0;">
-                    <label class="form-label">Custom Big 3 Lifts & Multipliers</label>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Define your primary lifts to track community standing (Multiplier × Bodyweight).</div>
-                    ${(() => {
-                        const b3 = profile.big3 || [
-                            { name: 'Bench Press', int: 1.0, adv: 1.5 },
-                            { name: 'Squat', int: 1.3, adv: 1.8 },
-                            { name: 'Deadlift', int: 1.5, adv: 2.0 }
-                        ];
-                        return b3.map((lift, i) => `
-                            <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; margin-bottom:8px; display:flex; flex-direction:column; gap:6px;">
-                                <input type="text" id="b3-name-${i}" class="form-input" style="font-size:0.8rem; padding:6px;" placeholder="Lift Name" value="${lift.name}">
-                                <div style="display:flex; gap:8px;">
-                                    <div style="flex:1;"><div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:2px;">Intermediate (xBW)</div><input type="number" step="0.1" id="b3-int-${i}" class="form-input" style="font-size:0.8rem; padding:6px;" value="${lift.int}"></div>
-                                    <div style="flex:1;"><div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:2px;">Advanced (xBW)</div><input type="number" step="0.1" id="b3-adv-${i}" class="form-input" style="font-size:0.8rem; padding:6px;" value="${lift.adv}"></div>
-                                </div>
-                            </div>
-                        `).join('');
-                    })()}
-                </div>
                 
                 <button class="btn btn-primary" id="btn-save-profile" style="width:100%; margin-top:24px;">Save Profile</button>
             </div>
@@ -265,11 +245,6 @@
                 dietRestrictions: savedDiet,
                 budget: document.getElementById('profile-budget').value,
                 meal_prep: document.getElementById('profile-meal-prep').value,
-                big3: [
-                    { name: document.getElementById('b3-name-0').value.trim(), int: parseFloat(document.getElementById('b3-int-0').value) || 1.0, adv: parseFloat(document.getElementById('b3-adv-0').value) || 1.5 },
-                    { name: document.getElementById('b3-name-1').value.trim(), int: parseFloat(document.getElementById('b3-int-1').value) || 1.3, adv: parseFloat(document.getElementById('b3-adv-1').value) || 1.8 },
-                    { name: document.getElementById('b3-name-2').value.trim(), int: parseFloat(document.getElementById('b3-int-2').value) || 1.5, adv: parseFloat(document.getElementById('b3-adv-2').value) || 2.0 }
-                ],
                 goals: {
                     muscle: document.getElementById('goal-muscle').checked,
                     skin: document.getElementById('goal-skin').checked,

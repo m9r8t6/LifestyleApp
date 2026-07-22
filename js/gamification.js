@@ -376,7 +376,7 @@ window.GamificationModule = (() => {
                         <div style="display:inline-flex; align-items:center; gap:6px; padding:6px 14px;
                                     background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25);
                                     border-radius:9999px; font-size:0.82rem; font-weight:700; color:var(--primary-light);">
-                            <span>⚡</span>
+                            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
                             ${currentLevelXP} / ${neededXP} XP
                         </div>
                     </div>
