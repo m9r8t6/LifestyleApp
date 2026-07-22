@@ -3,6 +3,7 @@
     const STORAGE_COMPLETION = 'lifeos_workout_completion';
     const STORAGE_TIMER = 'lifeos_timer_duration';
     const STORAGE_HISTORY = 'lifeos_sport_history';
+    const STORAGE_BODY_WEIGHT = 'lifeos_body_weight_history';
 
     const DEFAULT_SCHEDULE = {
         1: { type: 'chest', exercises: [
@@ -48,6 +49,12 @@
     let completion = { date: '', completed: [] }; // array of exercise IDs
     let selectedDayIndex = 1;
     let sportHistory = {}; // { "Bench Press": [{date, weight}] }
+    let bodyWeightHistory = []; // [{date, weight}]
+
+    // Chart state
+    let chartInstance = null;
+    let chartMetric = 'Body Weight';
+    let chartTimeframe = 'month'; // 'week', 'month', 'year'
 
     // Timer state
     let timerDuration = 180; // seconds
@@ -82,6 +89,9 @@
         const storedHistory = localStorage.getItem(STORAGE_HISTORY);
         if (storedHistory) sportHistory = JSON.parse(storedHistory);
 
+        const storedBW = localStorage.getItem(STORAGE_BODY_WEIGHT);
+        if (storedBW) bodyWeightHistory = JSON.parse(storedBW);
+
         const today = window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10);
         if (completion.date !== today) {
             completion = { date: today, completed: [] };
@@ -107,6 +117,10 @@
 
     function saveSportHistory() {
         localStorage.setItem(STORAGE_HISTORY, JSON.stringify(sportHistory));
+    }
+
+    function saveBodyWeight() {
+        localStorage.setItem(STORAGE_BODY_WEIGHT, JSON.stringify(bodyWeightHistory));
     }
 
     // --- Timer Logic ---
@@ -545,91 +559,220 @@
         });
     }
 
+    function saveBodyWeightEntry(weight) {
+        if (isNaN(weight) || weight <= 0) return;
+        const today = window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10);
+        const existing = bodyWeightHistory.find(b => b.date === today);
+        if (existing) {
+            existing.weight = weight;
+        } else {
+            bodyWeightHistory.push({ date: today, weight: weight });
+            bodyWeightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
+        }
+        saveBodyWeight();
+        if (window.App) window.App.showToast('Body weight saved!', 'success');
+        renderSection(); // re-render to update the input and chart
+    }
+
+    function updateChartSettings() {
+        const select = document.getElementById('chart-metric-select');
+        if (select) {
+            chartMetric = select.value;
+            drawSportChart();
+        }
+    }
+    
+    function setChartTimeframe(tf) {
+        chartTimeframe = tf;
+        renderSection(); // to re-render pills and redraw
+    }
+
+    function drawSportChart() {
+        const canvas = document.getElementById('sport-chart');
+        const insightEl = document.getElementById('chart-insight');
+        if (!canvas) return;
+
+        // 1. Determine date threshold
+        const today = new Date();
+        let daysToSubtract = 30; // default month
+        if (chartTimeframe === 'week') daysToSubtract = 7;
+        else if (chartTimeframe === 'year') daysToSubtract = 365;
+        
+        const thresholdDate = new Date();
+        thresholdDate.setDate(today.getDate() - daysToSubtract);
+        const thresholdStr = thresholdDate.toISOString().slice(0, 10);
+
+        // 2. Gather data
+        let rawData = []; // [{date, y}]
+        let labelSuffix = '';
+
+        if (chartMetric === 'Body Weight') {
+            rawData = bodyWeightHistory.map(b => ({ date: b.date, y: b.weight }));
+            labelSuffix = ' kg';
+        } else if (chartMetric.endsWith(' Ratio')) {
+            const exName = chartMetric.replace(' Ratio', '');
+            const exHistory = sportHistory[exName] || [];
+            
+            exHistory.forEach(h => {
+                // Find closest body weight on or before this date
+                const bw = [...bodyWeightHistory].reverse().find(b => b.date <= h.date);
+                if (bw && bw.weight > 0) {
+                    rawData.push({ date: h.date, y: parseFloat((h.weight / bw.weight).toFixed(2)) });
+                }
+            });
+            labelSuffix = 'x BW';
+        } else {
+            const exName = chartMetric;
+            const exHistory = sportHistory[exName] || [];
+            rawData = exHistory.map(h => ({ date: h.date, y: h.weight }));
+            labelSuffix = ' kg';
+        }
+
+        // Filter by timeframe
+        let filteredData = rawData.filter(d => d.date >= thresholdStr);
+        // Sort chronologically
+        filteredData.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+        // 3. Draw or show empty
+        if (filteredData.length === 0) {
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = null;
+            if (insightEl) insightEl.innerHTML = `<span style="color:var(--text-muted); font-weight:normal;">No data available for this timeframe.</span>`;
+            return;
+        }
+
+        const labels = filteredData.map(d => {
+            const parts = d.date.split('-'); // YYYY-MM-DD
+            return `${parts[2]}.${parts[1]}.`; 
+        });
+        const dataPts = filteredData.map(d => d.y);
+
+        // Calculate insight
+        if (filteredData.length > 1) {
+            const first = filteredData[0].y;
+            const last = filteredData[filteredData.length - 1].y;
+            const diff = last - first;
+            let insightText = '';
+            let color = 'var(--text)';
+            
+            if (diff > 0) {
+                insightText = `📈 +${diff.toFixed(1)}${labelSuffix}`;
+                color = '#10b981'; // green
+            } else if (diff < 0) {
+                insightText = `📉 ${diff.toFixed(1)}${labelSuffix}`;
+                color = '#ef4444'; // red
+            } else {
+                insightText = `➖ No Change`;
+                color = 'var(--text-muted)';
+            }
+            if (insightEl) insightEl.innerHTML = `<span style="color:${color};">${insightText}</span>`;
+        } else {
+            if (insightEl) insightEl.innerHTML = `<span style="color:var(--text-muted); font-weight:normal;">Need more data for trend.</span>`;
+        }
+
+        // Destroy old chart
+        if (chartInstance) chartInstance.destroy();
+
+        // Draw new chart
+        const ctx = canvas.getContext('2d');
+        
+        // CSS variable fallback colors
+        const gridColor = 'rgba(255, 255, 255, 0.1)';
+        const primaryColor = '#6366f1'; 
+
+        // @ts-ignore (Assuming Chart is loaded via CDN)
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: chartMetric,
+                    data: dataPts,
+                    borderColor: primaryColor,
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: primaryColor,
+                    pointRadius: 4,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + labelSuffix;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { color: gridColor }, ticks: { color: 'rgba(255,255,255,0.7)' } },
+                    y: { grid: { color: gridColor }, ticks: { color: 'rgba(255,255,255,0.7)' } }
+                }
+            }
+        });
+    }
+
     function renderAnalytics() {
         const container = document.getElementById('sport-analytics');
         if (!container) return;
         
-        const validExs = Object.keys(sportHistory).filter(name => sportHistory[name].length > 1);
-        
-        if (validExs.length === 0) {
-            container.innerHTML = '';
-            return;
+        let lastBW = '';
+        if (bodyWeightHistory.length > 0) {
+            lastBW = bodyWeightHistory[bodyWeightHistory.length - 1].weight;
         }
-        
-        validExs.sort((a,b) => sportHistory[b].length - sportHistory[a].length);
-        const topExs = validExs.slice(0, 2);
-        let profile = {};
-        try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
-        const bw = profile.weight || 75;
 
-        const b3Config = profile.big3 || [
-            { name: 'Bench Press', int: 1.0, adv: 1.5 },
-            { name: 'Squat', int: 1.3, adv: 1.8 },
-            { name: 'Deadlift', int: 1.5, adv: 2.0 }
-        ];
+        // Options for metric dropdown
+        const exercises = Object.keys(sportHistory).filter(name => sportHistory[name].length > 0).sort();
+        let optionsHtml = `<option value="Body Weight" ${chartMetric === 'Body Weight' ? 'selected' : ''}>Body Weight</option>`;
+        exercises.forEach(ex => {
+            optionsHtml += `<option value="${ex}" ${chartMetric === ex ? 'selected' : ''}>${ex}</option>`;
+            optionsHtml += `<option value="${ex} Ratio" ${chartMetric === `${ex} Ratio` ? 'selected' : ''}>${ex} / BW Ratio</option>`;
+        });
 
-        const sortedKeys = Object.keys(sportHistory).sort((a,b) => sportHistory[b].length - sportHistory[a].length);
-        if (sortedKeys.length === 0) return;
-        
         let html = `
             <div class="card-header-row" style="margin-top:24px; margin-bottom: 12px;">
-                <h2>${t('strength_progress')}</h2>
+                <h2>Statistics</h2>
             </div>
-            <div class="stagger-item" style="display:flex; flex-direction:column; gap:16px;">
-        `;
-        
-        sortedKeys.slice(0, 3).forEach(exName => {
-            const dataPts = sportHistory[exName].slice(-5);
-            const minW = Math.min(...dataPts.map(d => d.weight));
-            const maxW = Math.max(...dataPts.map(d => d.weight));
-            const range = maxW - minW || 1;
             
-            let communityMetric = '';
-            const exKey = exName.toLowerCase();
-            let metricData = null;
-            
-            // Check if this exercise matches one of the user's custom Big 3
-            for(const lift of b3Config) {
-                if (lift.name && exKey.includes(lift.name.toLowerCase())) {
-                    metricData = lift;
-                    break;
-                }
-            }
-            
-            if (metricData) {
-                const ratio = maxW / bw;
-                let standing = 'Beginner';
-                let color = 'var(--text-muted)';
-                if (ratio >= metricData.adv) { standing = 'Advanced'; color = '#10b981'; }
-                else if (ratio >= metricData.int) { standing = 'Intermediate'; color = '#3b82f6'; }
-                
-                communityMetric = `<div style="font-size:0.65rem; color:${color}; border: 1px solid ${color}40; background: ${color}10; padding: 2px 6px; border-radius: 4px; display:inline-block; margin-left: 8px;">${standing}</div>`;
-            }
-            
-            html += `
-                <div class="glass-card-sm">
-                    <div style="font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:8px; display:flex; align-items:center;">
-                        ${exName} ${communityMetric}
-                    </div>
-                    <div style="display:flex; align-items:flex-end; justify-content:space-between; height:70px; padding-top:10px;">
-                        ${dataPts.map(d => {
-                            const pct = ((d.weight - minW) / range) * 80 + 20;
-                            return `
-                                <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:18%;">
-                                    <span style="font-size:0.6rem; color:var(--text); font-weight:bold;">${d.weight}</span>
-                                    <div style="width:100%; height:50px; display:flex; align-items:flex-end; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
-                                        <div style="width:100%; height:${pct}%; background:var(--primary); opacity:0.8; border-radius:4px; transition: height 0.5s ease-out;"></div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
+            <!-- Body Weight Input -->
+            <div class="glass-card stagger-item" style="margin-bottom: 16px;">
+                <div style="font-weight:600; margin-bottom:8px;">Log Body Weight</div>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" step="0.1" id="bw-input" class="form-input" style="flex:1;" placeholder="z.B. 75.5 kg" value="${lastBW}">
+                    <button class="btn btn-primary" onclick="SportModule.saveBodyWeightEntry(parseFloat(document.getElementById('bw-input').value))">Save</button>
+                </div>
+            </div>
+
+            <!-- Chart Controls -->
+            <div class="glass-card stagger-item" style="margin-bottom: 16px;">
+                <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+                    <select id="chart-metric-select" class="form-input" onchange="SportModule.updateChartSettings()">
+                        ${optionsHtml}
+                    </select>
+                    <div class="tab-pills">
+                        <div class="tab-pill ${chartTimeframe === 'week' ? 'active' : ''}" onclick="SportModule.setChartTimeframe('week')">Week</div>
+                        <div class="tab-pill ${chartTimeframe === 'month' ? 'active' : ''}" onclick="SportModule.setChartTimeframe('month')">Month</div>
+                        <div class="tab-pill ${chartTimeframe === 'year' ? 'active' : ''}" onclick="SportModule.setChartTimeframe('year')">Year</div>
                     </div>
                 </div>
-            `;
-        });
+                
+                <div id="chart-insight" style="font-weight:600; font-size:0.9rem; color:var(--text); margin-bottom:8px; text-align:center;"></div>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="sport-chart"></canvas>
+                </div>
+            </div>
+        `;
         
-        html += `</div>`;
         container.innerHTML = html;
+        
+        // Let the DOM update, then draw the chart
+        setTimeout(() => drawSportChart(), 50);
     }
 
     function showAddExerciseModal() {
@@ -699,6 +842,6 @@
         bindTimer();
     }
 
-    window.SportModule = { init, renderSection, renderDashboard, getCompletionData };
+    window.SportModule = { init, renderSection, renderDashboard, getCompletionData, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };
 
 })();
