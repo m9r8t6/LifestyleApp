@@ -9,10 +9,21 @@
     function init() {
         // Try auto-connect if previously connected
         if (localStorage.getItem('lifeos_drive_auto_connect') === 'true') {
-            setTimeout(() => {
-                const clientId = localStorage.getItem('lifeos_google_client_id');
-                if (clientId) authGoogle(true);
-            }, 1000);
+            const cachedToken = localStorage.getItem('lifeos_google_access_token');
+            const tokenExpiry = localStorage.getItem('lifeos_google_token_expiry');
+            
+            // Check if token exists and is valid (with a 5 minute buffer)
+            if (cachedToken && tokenExpiry && Date.now() < (parseInt(tokenExpiry) - 300000)) {
+                accessToken = cachedToken;
+                if (window.App) window.App.showToast('Auto-connected to Google', 'success');
+                setTimeout(() => onAuthSuccess(true), 500);
+            } else {
+                // Token expired or missing, try silent auth
+                setTimeout(() => {
+                    const clientId = localStorage.getItem('lifeos_google_client_id');
+                    if (clientId) authGoogle(true);
+                }, 1000);
+            }
         }
     }
 
@@ -61,6 +72,25 @@
     }
 
     // --- GOOGLE DRIVE AUTH ---
+    function onAuthSuccess(isAuto) {
+        // Show sync and restore buttons
+        const btnSync = document.getElementById('btn-sync-drive');
+        if (btnSync) btnSync.style.display = 'block';
+        const btnRestore = document.getElementById('btn-restore-drive');
+        if (btnRestore) btnRestore.style.display = 'block';
+        const btnAuth = document.getElementById('btn-auth-drive');
+        if (btnAuth) btnAuth.textContent = 'Drive Connected ✅';
+
+        ensureDriveFolder().then(() => loadVectorsFromDrive()).catch(err => {
+            console.error('Drive connection error:', err);
+            // If the cached token was actually revoked, we should clear it
+            if (err.message && err.message.includes('401')) {
+                localStorage.removeItem('lifeos_google_access_token');
+                accessToken = null;
+            }
+        });
+    }
+
     function authGoogle(isAuto = false) {
         const clientId = localStorage.getItem('lifeos_google_client_id');
         if (!clientId) {
@@ -78,21 +108,17 @@
                 }
                 accessToken = response.access_token;
                 
+                // Cache token and expiry
+                localStorage.setItem('lifeos_google_access_token', accessToken);
+                const expiresIn = response.expires_in || 3599;
+                localStorage.setItem('lifeos_google_token_expiry', Date.now() + (expiresIn * 1000));
+                
                 // Remember that we connected successfully
                 localStorage.setItem('lifeos_drive_auto_connect', 'true');
 
                 if (!isAuto && window.App) window.App.showToast('Connected to Google Drive!', 'success');
-                else if (isAuto && window.App) window.App.showToast('Auto-connected to Drive', 'success');
                 
-                // Show sync and restore buttons
-                const btnSync = document.getElementById('btn-sync-drive');
-                if (btnSync) btnSync.style.display = 'block';
-                const btnRestore = document.getElementById('btn-restore-drive');
-                if (btnRestore) btnRestore.style.display = 'block';
-                const btnAuth = document.getElementById('btn-auth-drive');
-                if (btnAuth) btnAuth.textContent = 'Drive Connected ✅';
-
-                ensureDriveFolder().then(() => loadVectorsFromDrive());
+                onAuthSuccess(isAuto);
             },
             error_callback: (err) => {
                 if (isAuto) console.warn('Auto-auth error. Popup blocked?', err);
