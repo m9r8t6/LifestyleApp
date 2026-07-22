@@ -185,9 +185,11 @@
         const btn = document.getElementById(`btn-reply-${id}`);
         if(btn) { btn.innerHTML = 'Drafting...'; btn.disabled = true; }
 
+        const extraInst = document.getElementById(`reply-inst-${id}`)?.value.trim() || '';
+
         try {
             const sysPrompt = `You are an AI assistant helping the user reply to an email. Write a polite, professional, and concise reply based on the context of the email. If the email asks for information, provide a generic polite placeholder like "[Insert Info Here]" for the user to fill out. Sign off with "Best regards,". Write in the same language as the email. Only output the reply text.`;
-            const userPrompt = `Email from: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body}\n\nPlease draft a reply.`;
+            const userPrompt = `Email from: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body}\n\n${extraInst ? `Additional instructions for reply: ${extraInst}\n\n` : ''}Please draft a reply.`;
 
             const response = await fetch('https://api.deepseek.com/chat/completions', {
                 method: 'POST',
@@ -277,9 +279,12 @@
                         
                         <!-- Expanded Details -->
                         <div id="expand-mail-${email.id}" style="display:none; border-top: 1px solid var(--glass-border); padding: 16px; background: rgba(0,0,0,0.2);">
-                            <div style="display:flex; gap:8px; margin-bottom: 16px;">
-                                <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')">✨ Summarize</button>
-                                <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')">✍️ Draft Reply</button>
+                            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom: 16px;">
+                                <div style="display:flex; gap:8px;">
+                                    <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')">✨ Summarize</button>
+                                    <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')">✍️ Draft Reply</button>
+                                </div>
+                                <input type="text" id="reply-inst-${email.id}" class="form-input" style="font-size: 0.8rem; padding: 6px 10px; background: rgba(255,255,255,0.05);" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
                             </div>
                             
                             ${email.aiSummary ? `
