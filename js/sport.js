@@ -47,12 +47,6 @@
         const storedSchedule = localStorage.getItem(STORAGE_SCHEDULE);
         schedule = storedSchedule ? JSON.parse(storedSchedule) : DEFAULT_SCHEDULE;
 
-        // Auto-wipe old default schedule (if it starts with Bench Press) so user can start fresh
-        if (schedule[1] && schedule[1].exercises && schedule[1].exercises.length > 0 && schedule[1].exercises[0].name === 'Bench Press') {
-            schedule = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
-            saveSchedule();
-        }
-
         const storedCompletion = localStorage.getItem(STORAGE_COMPLETION);
         if (storedCompletion) completion = JSON.parse(storedCompletion);
 

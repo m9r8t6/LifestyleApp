@@ -194,37 +194,6 @@ window.App = (() => {
             btn.addEventListener('click', () => switchTab(btn));
         });
 
-        // Swipe Navigation
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) {
-            let touchStartX = 0;
-            let touchEndX = 0;
-
-            mainContent.addEventListener('touchstart', e => {
-                touchStartX = e.changedTouches[0].screenX;
-            }, { passive: true });
-
-            mainContent.addEventListener('touchend', e => {
-                touchEndX = e.changedTouches[0].screenX;
-                
-                const threshold = 50; 
-                const dx = touchEndX - touchStartX;
-                
-                // Check if it's a horizontal swipe (skip if too small)
-                if (Math.abs(dx) < threshold) return;
-
-                const activeIdx = navBtns.findIndex(b => b.classList.contains('active'));
-                if (activeIdx === -1) return;
-
-                if (dx < 0 && activeIdx < navBtns.length - 1) {
-                    // Swiped left -> next tab
-                    switchTab(navBtns[activeIdx + 1]);
-                } else if (dx > 0 && activeIdx > 0) {
-                    // Swiped right -> prev tab
-                    switchTab(navBtns[activeIdx - 1]);
-                }
-            }, { passive: true });
-        }
     }
 
     // ── Modal system ─────────────────────────────────────
