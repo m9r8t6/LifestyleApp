@@ -88,9 +88,10 @@
         localStorage.setItem(notifiedKey, JSON.stringify(notifiedEvents));
     }
 
-    function renderSection() {
+    function renderSection(fromSync) {
         const container = document.getElementById('calendar-container');
         if (!container) return;
+        if (fromSync !== true) autoSync();
 
         const year = selectedDate.getFullYear();
         const month = selectedDate.getMonth();
@@ -196,6 +197,12 @@
     }
 
     /** Next events for the Today screen. */
+    function getContextForAI() {
+        const today = window.App.getToday();
+        return getSortedEvents().filter(e => e.date >= today).slice(0, 12)
+            .map(e => `${formatWhen(e)}: ${e.title}${e.prepNotes ? ` (prep notes: ${e.prepNotes.slice(0, 200)})` : ''}`);
+    }
+
     function getUpcoming(limit = 3) {
         const today = window.App.getToday();
         return getSortedEvents().filter(e => e.date >= today).slice(0, limit)
@@ -245,12 +252,22 @@
         window.App.showModal('Add Event', html, '<button class="btn btn-primary" onclick="CalendarModule.addEvent()" style="width:100%;">Save Event</button>');
     }
 
-    async function syncWithGoogle() {
+    let lastGoogleSync = 0;
+
+    /** Pull from Google when the calendar is opened, at most every few minutes. */
+    function autoSync() {
+        if (!window.GoogleModule || !window.GoogleModule.isReady) return;
+        if (Date.now() - lastGoogleSync < 5 * 60 * 1000) return;
+        syncWithGoogle(true);
+    }
+
+    async function syncWithGoogle(quiet = false) {
         if (!window.RAGModule || !window.RAGModule.isReady) return;
         const token = window.RAGModule.getAccessToken();
         if (!token) return;
+        lastGoogleSync = Date.now();
 
-        window.App.showToast('Syncing with Google Calendar...', 'info');
+        if (!quiet) window.App.showToast('Syncing with Google Calendar…', 'info');
 
         try {
             const timeMin = new Date().toISOString();
@@ -265,17 +282,26 @@
             const data = await response.json();
 
             let addedCount = 0;
+            let changed = false;
             (data.items || []).forEach(gEvent => {
                 const dateStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(0, 10) : (gEvent.start.date ? gEvent.start.date : null);
                 const timeStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(11, 16) : '00:00';
                 
                 if (!dateStr) return;
 
-                const exists = events.find(e => e.title === gEvent.summary && e.date === dateStr);
-                if (!exists) {
+                const title = gEvent.summary || 'Google event';
+                const exists = events.find(e => (e.googleId && e.googleId === gEvent.id) || (e.title === title && e.date === dateStr));
+                if (exists) {
+                    // Remember the link and follow changes made in Google
+                    if (!exists.googleId) { exists.googleId = gEvent.id; changed = true; }
+                    if (exists.googleId === gEvent.id && (exists.time !== timeStr || exists.date !== dateStr || exists.title !== title)) {
+                        exists.time = timeStr; exists.date = dateStr; exists.title = title; changed = true;
+                    }
+                } else {
                     events.push({
                         id: generateId(),
-                        title: gEvent.summary || 'Google Event',
+                        googleId: gEvent.id,
+                        title,
                         date: dateStr,
                         time: timeStr,
                         reminder: 'none',
@@ -286,12 +312,15 @@
                 }
             });
 
-            saveEvents();
-            renderSection();
-            window.App.showToast(`Synced! Added ${addedCount} events from Google.`, 'success');
+            if (addedCount || changed) {
+                saveEvents();
+                if (document.body.dataset.section === 'calendar') renderSection(true);
+                window.App.refreshDashboard();
+            }
+            if (!quiet || addedCount) window.App.showToast(addedCount ? `${addedCount} new event${addedCount === 1 ? '' : 's'} from Google Calendar` : 'Google Calendar is up to date', 'success');
         } catch (e) {
             console.error(e);
-            window.App.showToast('Google Calendar sync failed', 'error');
+            if (!quiet) window.App.showToast('Google Calendar sync failed', 'error');
         }
     }
 
@@ -328,6 +357,9 @@
             });
             
             if (!res.ok) throw new Error(`Google Calendar answered ${res.status}`);
+            const created = await res.json();
+            const stored = events.find(e => e.id === ev.id);
+            if (stored && created.id) { stored.googleId = created.id; saveEvents(); }
             window.App.showToast('Also added to Google Calendar', 'success');
         } catch (e) {
             console.error('Failed to push to Google', e);
@@ -466,6 +498,6 @@ You MUST write the response in ${lang} language. Respond only with the notes, no
         }
     }
 
-    window.CalendarModule = { init, renderSection, renderDashboard, getUpcoming, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI, syncWithGoogle };
+    window.CalendarModule = { init, renderSection, renderDashboard, getUpcoming, getContextForAI, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI, syncWithGoogle };
 
 })();

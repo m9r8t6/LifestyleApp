@@ -824,6 +824,53 @@ code { font-size: 0.85em; background: var(--surface); padding: 1px 5px; border-r
 .mail-reader-head .mail-sender { color: var(--text); font-weight: 700; }
 .mail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .mail-summary { margin-bottom: 14px; border-left: 4px solid var(--accent); }
+.mail-compose { border-left-color: var(--primary); }
+.mail-rewrite { display: flex; gap: 8px; margin-top: 8px; }
+.mail-rewrite .form-input { flex: 1; min-width: 0; font-size: 0.9rem; }
+.mail-send-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
+.mail-send-row .btn-primary { padding: 10px 22px; }
+.mail-send-switch { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--glass-border); font-size: 0.84rem; color: var(--text-secondary); }
+.mail-answered { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-light); background: var(--accent-soft); padding: 1px 7px; border-radius: var(--r-full); }
+
+.undo-bar {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+    z-index: 2500;
+    max-width: 616px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 10px 10px 16px;
+    border-radius: var(--r-md);
+    background: var(--text);
+    color: var(--bg-primary);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    animation: fadeSlideIn var(--dur) var(--ease);
+}
+.undo-text { font-size: 0.88rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 14px;
+    border: none;
+    border-radius: var(--r-full);
+    background: var(--bg-primary);
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.undo-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--primary); transform-origin: left; animation: undoShrink linear forwards; }
+@keyframes undoShrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 .mail-body { font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 
 /* ─── Forms ─── */

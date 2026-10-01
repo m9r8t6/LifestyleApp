@@ -22,6 +22,7 @@ services:
       LIFESTYLE_GOOGLE_CLIENT_ID: ${LIFESTYLE_GOOGLE_CLIENT_ID:-}
       LIFESTYLE_GOOGLE_CLIENT_SECRET: ${LIFESTYLE_GOOGLE_CLIENT_SECRET:-}
       LIFESTYLE_TOKEN_KEY: ${LIFESTYLE_TOKEN_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      LIFESTYLE_MAIL_SMTP_PORT: "3465"
       LIFESTYLE_MAIL_TLS_INSECURE: "true"   # the test mail server below uses a self-signed certificate
     depends_on:
       - lifestyle-db
@@ -34,6 +35,7 @@ services:
     ports:
       - "127.0.0.1:3025:3025"
       - "127.0.0.1:3993:3993"
+      - "127.0.0.1:3465:3465"
     networks:
       default:
         aliases:

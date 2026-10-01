@@ -10,6 +10,7 @@ const net = require('node:net');
 process.env.PORT = '0';
 process.env.LIFESTYLE_TOKEN_KEY = process.env.LIFESTYLE_TOKEN_KEY || 'ab'.repeat(32);
 process.env.LIFESTYLE_MAIL_TLS_INSECURE = 'true';
+process.env.LIFESTYLE_MAIL_SMTP_PORT = '3465';
 
 const nodemailer = require('nodemailer');
 const { start } = require('../src/server');
@@ -65,7 +66,7 @@ test('mailboxes: add, list, read, remove', async (t) => {
     const stored = (await pool.query('SELECT password FROM mail_accounts')).rows[0].password;
     assert.ok(!stored.includes('secret'));
     r = await call('GET', '/api/mail/accounts');
-    assert.deepEqual(r.body.accounts, [{ id, email: MAILBOX.email, host: MAILBOX.host }]);
+    assert.deepEqual(r.body.accounts, [{ id, email: MAILBOX.email, host: MAILBOX.host, canSend: false }]);
 
     r = await call('GET', `/api/mail/accounts/${id}/messages`);
     assert.equal(r.status, 200);
@@ -86,6 +87,30 @@ test('mailboxes: add, list, read, remove', async (t) => {
     // Reading must not mark anything as read on the mail server
     r = await call('GET', `/api/mail/accounts/${id}/messages?refresh=1`);
     assert.ok(r.body.messages.every(m => m.unread));
+
+    // Sending is off until the user switches it on for this mailbox
+    const reply = { to: 'anna@kunde.test', subject: 'Re: Angebot für das Projekt', body: 'Hallo Anna,\nDonnerstag passt.\nMoritz', inReplyTo: '<abc@kunde.test>' };
+    r = await call('POST', `/api/mail/accounts/${id}/send`, reply);
+    assert.equal(r.status, 403);
+    assert.equal(r.body.error, 'sending_not_allowed');
+
+    r = await call('POST', `/api/mail/accounts/${id}/sending`, { allow: true });
+    assert.equal(r.body.canSend, true);
+    r = await call('POST', `/api/mail/accounts/${id}/send`, { ...reply, to: 'not-an-address' });
+    assert.equal(r.body.error, 'invalid_recipient');
+    r = await call('POST', `/api/mail/accounts/${id}/send`, { ...reply, subject: 'Re: x\r\nBcc: victim@evil.test' });
+    assert.equal(r.status, 200);   // header injection is flattened into the subject text
+
+    // Send to our own test mailbox so the delivery can be checked
+    r = await call('POST', `/api/mail/accounts/${id}/send`, { ...reply, to: MAILBOX.email });
+    assert.equal(r.status, 200);
+    r = await call('GET', `/api/mail/accounts/${id}/messages?refresh=1`);
+    const delivered = r.body.messages[0];
+    assert.equal(delivered.subject, 'Re: Angebot für das Projekt');
+    assert.match(delivered.from, /info@ainstein\.test/);
+    r = await call('GET', `/api/mail/accounts/${id}/messages/${delivered.id}`);
+    assert.match(r.body.message.body, /Donnerstag passt/);
+    assert.equal(r.body.message.replyTo, MAILBOX.email);
 
     // Another user cannot reach this mailbox
     const other = cookie; cookie = '';

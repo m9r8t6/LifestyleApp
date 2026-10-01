@@ -1,11 +1,15 @@
 'use strict';
 
-// Extra mailboxes read over IMAP (for example all-inkl). The mailbox password is
-// stored encrypted; mail is only read, never changed or deleted on the mail server.
+// Extra mailboxes (for example all-inkl). The mailbox password is stored encrypted.
+// Reading never changes anything on the mail server. Sending is switched on per
+// mailbox by the user, goes out over the provider's SMTP server and puts a copy
+// into the mailbox's Sent folder.
 
 const express = require('express');
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
+const nodemailer = require('nodemailer');
+const MailComposer = require('nodemailer/lib/mail-composer');
 const { pool } = require('./db');
 const auth = require('./auth');
 const { encrypt, decrypt, available: canEncrypt } = require('./secretbox');
@@ -15,6 +19,9 @@ const TLS_INSECURE = process.env.LIFESTYLE_MAIL_TLS_INSECURE === 'true';
 const LIST_LIMIT = 40;
 const LIST_CACHE_MS = 60 * 1000;
 const MAX_BODY_CHARS = 60000;
+const SMTP_PORT = Number(process.env.LIFESTYLE_MAIL_SMTP_PORT) || 465;   // SMTP over TLS
+const SENDS_PER_HOUR = 30;
+const EMAIL_PATTERN = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 const HOST_PATTERN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 
 const SCHEMA = `
@@ -29,6 +36,7 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, email)
 );
+ALTER TABLE mail_accounts ADD COLUMN IF NOT EXISTS can_send BOOLEAN NOT NULL DEFAULT false;
 `;
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -123,11 +131,78 @@ async function readMessage(account, password, uid) {
             to: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map(t => t.text).join(', ') : parsed.to.text) : '',
             subject: parsed.subject || '(no subject)',
             date: (parsed.date || new Date()).toISOString(),
+            // Where a reply goes, and what it needs to stay in the same conversation
+            replyTo: ((parsed.replyTo || parsed.from || {}).value || [])[0]?.address || '',
+            messageId: parsed.messageId || '',
+            references: [].concat(parsed.references || []).join(' '),
             // Plain text only: nothing from the mail is ever rendered as HTML
             body: (parsed.text || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_BODY_CHARS),
             attachments: (parsed.attachments || []).map(a => a.filename).filter(Boolean).slice(0, 20),
         };
     });
+}
+
+// ── Sending ──────────────────────────────────────────────
+
+const sendLog = new Map();
+
+function sendAllowed(userId) {
+    const now = Date.now();
+    const recent = (sendLog.get(userId) || []).filter(t => now - t < 3600000);
+    if (recent.length >= SENDS_PER_HOUR) return false;
+    recent.push(now);
+    sendLog.set(userId, recent);
+    return true;
+}
+
+/** Best effort: file the sent mail where the user's mail program expects it. */
+async function saveToSent(account, password, raw) {
+    const client = connect(account, password);
+    client.on('error', () => {});
+    try {
+        await client.connect();
+        const folders = await client.list();
+        const sent = folders.find(f => f.specialUse === '\\Sent')
+            || folders.find(f => /^(inbox[./])?(sent|sent items|sent messages|gesendet|gesendete objekte|gesendete elemente)$/i.test(f.path));
+        if (!sent) return false;
+        await client.append(sent.path, raw, ['\\Seen']);
+        return true;
+    } catch (err) {
+        console.error('[mail] could not save to Sent:', err.message);
+        return false;
+    } finally {
+        client.logout().catch(() => {});
+    }
+}
+
+async function sendMessage(account, password, mail) {
+    const raw = await new MailComposer({
+        from: account.email,
+        to: mail.to,
+        subject: mail.subject,
+        text: mail.body,
+        inReplyTo: mail.inReplyTo || undefined,
+        references: mail.references || undefined,
+    }).compile().build();
+
+    const transport = nodemailer.createTransport({
+        host: account.imap_host,
+        port: SMTP_PORT,
+        secure: true,
+        auth: { user: account.username, pass: password },
+        tls: TLS_INSECURE ? { rejectUnauthorized: false } : undefined,
+        connectionTimeout: 20000,
+        socketTimeout: 30000,
+    });
+    try {
+        await transport.sendMail({ envelope: { from: account.email, to: [mail.to] }, raw });
+    } catch (err) {
+        console.error('[mail] send failed:', err.message);
+        if (err.code === 'EAUTH') throw fail(400, 'login_failed');
+        if (err.responseCode >= 500) throw fail(400, 'mail_rejected');
+        throw fail(502, 'mail_server_unreachable');
+    }
+    return { savedToSent: await saveToSent(account, password, raw) };
 }
 
 // ── Routes ───────────────────────────────────────────────
@@ -152,10 +227,10 @@ async function loadAccount(req) {
 
 router.get('/accounts', wrap(async (req, res) => {
     const { rows } = await pool.query(
-        'SELECT id, email, imap_host FROM mail_accounts WHERE user_id = $1 ORDER BY id',
+        'SELECT id, email, imap_host, can_send FROM mail_accounts WHERE user_id = $1 ORDER BY id',
         [req.user.id]
     );
-    res.json({ accounts: rows.map(r => ({ id: String(r.id), email: r.email, host: r.imap_host })) });
+    res.json({ accounts: rows.map(r => ({ id: String(r.id), email: r.email, host: r.imap_host, canSend: r.can_send })) });
 }));
 
 // Add a mailbox. The login is tried first, so a wrong password is reported right away.
@@ -184,7 +259,7 @@ router.post('/accounts', wrap(async (req, res) => {
         [req.user.id, email, host, port, username, encrypt(password)]
     );
     listCache.delete(String(rows[0].id));
-    res.json({ account: { id: String(rows[0].id), email, host } });
+    res.json({ account: { id: String(rows[0].id), email, host, canSend: false } });
 }));
 
 router.delete('/accounts/:id', wrap(async (req, res) => {
@@ -211,6 +286,35 @@ router.get('/accounts/:id/messages/:uid', wrap(async (req, res) => {
     const uid = Number(req.params.uid);
     if (!Number.isInteger(uid) || uid < 1) throw fail(400, 'invalid_message');
     res.json({ message: await readMessage(account, decrypt(account.password), uid) });
+}));
+
+// The user switches sending on (or off) for one mailbox.
+router.post('/accounts/:id/sending', wrap(async (req, res) => {
+    const account = await loadAccount(req);
+    const allow = req.body?.allow === true;
+    await pool.query('UPDATE mail_accounts SET can_send = $2 WHERE id = $1', [account.id, allow]);
+    res.json({ canSend: allow });
+}));
+
+router.post('/accounts/:id/send', wrap(async (req, res) => {
+    const account = await loadAccount(req);
+    if (!account.can_send) throw fail(403, 'sending_not_allowed');
+
+    const to = String(req.body?.to || '').trim();
+    const subject = String(req.body?.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300);
+    const body = String(req.body?.body || '');
+    const headerValue = (value) => String(value || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 2000);
+
+    if (!EMAIL_PATTERN.test(to) || to.length > 254) throw fail(400, 'invalid_recipient');
+    if (!subject || !body.trim() || body.length > 100000) throw fail(400, 'invalid_message');
+    if (!sendAllowed(req.user.id)) throw fail(429, 'too_many_mails');
+
+    const result = await sendMessage(account, decrypt(account.password), {
+        to, subject, body,
+        inReplyTo: headerValue(req.body?.inReplyTo),
+        references: headerValue(req.body?.references),
+    });
+    res.json({ ok: true, savedToSent: result.savedToSent });
 }));
 
 module.exports = { router, migrate: () => pool.query(SCHEMA) };

@@ -54,12 +54,15 @@
         const care = window.BodycareModule
             ? ['morning', 'evening'].map(time => `${time}: ` + (window.BodycareModule.getTodayItems(time).map(i => `${i.label}${i.done ? ' [done]' : ''}`).join(', ') || 'nothing due'))
             : [];
-        const todos = window.TodoModule ? window.TodoModule.getPending().map(t => t.title) : [];
-        const events = window.CalendarModule ? window.CalendarModule.getUpcoming(8).map(e => `${e.when}: ${e.title}`) : [];
+        const todos = window.TodoModule ? window.TodoModule.getPending().map((t, i) => `${i + 1}. ${t.title}${t.description ? ` — ${t.description}` : ''}`) : [];
+        const events = window.CalendarModule ? window.CalendarModule.getContextForAI() : [];
+        const mails = window.MailModule ? window.MailModule.getContextForAI() : [];
+        const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
         return `You are the assistant inside the user's personal lifestyle app "LifeOS".
 Answer in the language the user writes in (if unclear, use ${lang}). Write plain text without Markdown: no asterisks, no headings; use short lines and simple dashes for lists. Be concise, concrete and friendly. Base every statement about the user on the data below; if something is not in the data, say so instead of guessing. You cannot change the app's data yourself.
-Today is ${weekday}, ${today}.
+Today is ${weekday}, ${today}, and it is ${now} now.
+When the user asks what to do next, what can be done quickly, or for a plan: answer with a numbered sequence in a sensible order (quick wins and things that fit together first), give a rough time for each step, and only use items that are in the data below. Keep it short enough to act on.
 
 --- PROFILE ---
 Sex: ${profile.sex || 'unknown'}, age: ${profile.age || 'unknown'}, weight: ${profile.weight || 'unknown'} kg, height: ${profile.height || 'unknown'} cm
@@ -83,10 +86,13 @@ Body weight log: ${(sport.bodyWeight || []).join('; ') || 'nothing logged yet'}
 ${care.join('\n')}
 
 --- OPEN TO-DOS ---
-${todos.join('; ') || 'none'}
+${todos.join('\n') || 'none'}
 
 --- UPCOMING EVENTS ---
-${events.join('; ') || 'none'}
+${events.join('\n') || 'none'}
+
+--- UNREAD IMPORTANT MAIL ---
+${mails.join('\n') || 'none loaded (the Mail screen has not been opened in this session, or nothing is unread)'}
 `;
     }
 

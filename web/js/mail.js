@@ -5,7 +5,9 @@
  *  all-inkl (read by the server). Every message is sorted into
  *  Important / Updates / Filtered so that advertising and
  *  social-network notices stay out of the way.
- *  Mail is only read here; nothing is changed on the mail server.
+ *  Reading never changes anything on the mail server. Replies can
+ *  be sent once the user allows it for a mailbox; every send waits
+ *  ten seconds so it can be taken back.
  * ========================================================= */
 
 (function() {
@@ -15,6 +17,8 @@
     const CLASS_CACHE_KEY = 'lifeos_mail_classes';   // stays on this device
     const CLASS_CACHE_MAX = 600;
     const GMAIL_LIMIT = 30;
+    const GMAIL_SEND_KEY = 'lifeos_mail_gmail_send';   // 'yes' once the user allowed sending from Gmail
+    const UNDO_SECONDS = 10;
 
     const TABS = [
         { key: 'important', label: 'Important' },
@@ -43,8 +47,8 @@
     const gmailReady = () => Boolean(window.GoogleModule && window.GoogleModule.isReady);
 
     function accounts() {
-        const list = imapAccounts.map(a => ({ id: a.id, label: a.email, type: 'imap' }));
-        if (gmailAvailable()) list.unshift({ id: 'gmail', label: 'Gmail', type: 'gmail' });
+        const list = imapAccounts.map(a => ({ id: a.id, label: a.email, type: 'imap', canSend: a.canSend }));
+        if (gmailAvailable()) list.unshift({ id: 'gmail', label: 'Gmail', type: 'gmail', canSend: localStorage.getItem(GMAIL_SEND_KEY) === 'yes' });
         return list;
     }
 
@@ -223,6 +227,10 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
                 unread: (d.labelIds || []).includes('UNREAD'),
                 snippet: d.snippet || '',
                 body: extractBody(d.payload),
+                threadId: d.threadId,
+                replyTo: splitSender(h('reply-to') || h('from')).email,
+                messageId: h('message-id'),
+                references: h('references'),
                 signals: {
                     listUnsubscribe: Boolean(h('list-unsubscribe')),
                     listId: Boolean(h('list-id')),
@@ -246,6 +254,11 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         invalid_host: 'That does not look like a mail server name.',
         invalid_email: 'Please enter a valid email address.',
         invalid_credentials: 'Please enter the login name and password.',
+        sending_not_allowed: 'Sending is not switched on for this mailbox.',
+        invalid_recipient: 'The recipient address is not valid.',
+        invalid_message: 'The reply needs a subject and some text.',
+        mail_rejected: 'The mail server did not accept the message.',
+        too_many_mails: 'Too many mails in a short time. Please wait a little.',
     };
     const errorText = (err) => ERROR_TEXT[err.message] || err.message || 'Something went wrong.';
 
@@ -262,6 +275,13 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         try {
             const messages = id === 'gmail' ? await fetchGmail() : await fetchImap(id, refresh);
             await classify(id, messages);
+            // A refresh must not throw away a reply that is being written
+            const previous = new Map((state.messages || []).map(m => [m.id, m]));
+            messages.forEach(m => {
+                const old = previous.get(m.id);
+                if (!old) return;
+                ['aiDraft', 'draftTo', 'aiSummary', 'answered'].forEach(key => { if (old[key] !== undefined) m[key] = old[key]; });
+            });
             state.messages = messages;
             state.loadedAt = Date.now();
             state.summary = '';
@@ -305,7 +325,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
                         <span class="mail-sender">${esc(sender.name)}</span>
                         <span class="mail-time">${esc(formatWhen(msg.date))}</span>
                     </span>
-                    <span class="mail-subject">${esc(msg.subject)}</span>
+                    <span class="mail-subject">${msg.answered ? '<span class="mail-answered">answered</span> ' : ''}${esc(msg.subject)}</span>
                     <span class="mail-snippet">${esc(msg.snippet)}</span>
                 </span>
             </button>
@@ -417,6 +437,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
             <div class="mail-actions">
                 <button class="btn btn-sm btn-ai" id="btn-mail-sum">Summarise</button>
                 <button class="btn btn-sm btn-ai" id="btn-mail-reply">Draft a reply</button>
+                <button class="btn btn-sm btn-ghost" id="btn-mail-write">Write reply</button>
             </div>
             <div id="mail-ai-out"></div>
             <div class="mail-body" id="mail-body">${msg.body === undefined ? '<span class="form-hint">Loading message…</span>' : esc(msg.body || '(This message has no text.)')}</div>
@@ -430,17 +451,32 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         out.innerHTML = `
             ${msg.aiSummary ? `<div class="glass-card-sm mail-summary"><h4 class="detail-heading">Summary</h4><div class="detail-text">${esc(msg.aiSummary)}</div></div>` : ''}
             ${msg.aiDraft !== undefined ? `
-                <div class="glass-card-sm mail-summary">
-                    <h4 class="detail-heading">Draft reply</h4>
-                    <textarea class="form-input" id="mail-draft" style="min-height:140px;">${esc(msg.aiDraft)}</textarea>
-                    <input type="text" id="mail-draft-inst" class="form-input" style="margin-top:8px;" placeholder="Change it: e.g. 'say yes, but next week'">
-                    <div style="display:flex; gap:8px; margin-top:8px;">
-                        <button class="btn btn-sm btn-ghost" id="btn-mail-redraft">Rewrite</button>
-                        <button class="btn btn-sm btn-primary" id="btn-mail-copy">Copy</button>
+                <div class="glass-card-sm mail-summary mail-compose">
+                    <h4 class="detail-heading">Your reply</h4>
+                    <label class="form-label" for="mail-draft-to">To</label>
+                    <input type="email" id="mail-draft-to" class="form-input" autocapitalize="none" spellcheck="false" value="${esc(msg.draftTo !== undefined ? msg.draftTo : (msg.replyTo || splitSender(msg.from).email))}">
+                    <textarea class="form-input" id="mail-draft" style="min-height:160px; margin-top:8px;" placeholder="Write your reply…">${esc(msg.aiDraft)}</textarea>
+                    <div class="mail-rewrite">
+                        <input type="text" id="mail-draft-inst" class="form-input" placeholder="Let the AI change it: 'say yes, but next week'">
+                        <button class="btn btn-sm btn-ai" id="btn-mail-redraft">Rewrite</button>
+                    </div>
+                    <div class="mail-send-row">
+                        <button class="btn btn-sm btn-ghost" id="btn-mail-copy">Copy</button>
+                        <button class="btn btn-primary" id="btn-mail-send">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            Send
+                        </button>
                     </div>
                 </div>` : ''}
         `;
-        document.getElementById('btn-mail-redraft')?.addEventListener('click', () => draftReply(msg));
+        const keepDraft = () => {
+            const area = document.getElementById('mail-draft');
+            if (area) { msg.aiDraft = area.value; msg.draftTo = document.getElementById('mail-draft-to').value.trim(); }
+        };
+        document.getElementById('mail-draft')?.addEventListener('input', keepDraft);
+        document.getElementById('mail-draft-to')?.addEventListener('input', keepDraft);
+        document.getElementById('btn-mail-redraft')?.addEventListener('click', () => { keepDraft(); draftReply(msg); });
+        document.getElementById('btn-mail-send')?.addEventListener('click', () => { keepDraft(); startSend(msg); });
         document.getElementById('btn-mail-copy')?.addEventListener('click', async () => {
             const area = document.getElementById('mail-draft');
             try {
@@ -458,6 +494,9 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         const data = await window.Store.api(`/api/mail/accounts/${activeId}/messages/${msg.id}`, { timeout: 60000 });
         msg.body = data.message.body || '';
         msg.attachments = data.message.attachments || [];
+        msg.replyTo = data.message.replyTo || '';
+        msg.messageId = data.message.messageId || '';
+        msg.references = data.message.references || '';
     }
 
     async function openMessage(id) {
@@ -467,6 +506,11 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         const bind = () => {
             document.getElementById('btn-mail-sum')?.addEventListener('click', () => summarize(msg));
             document.getElementById('btn-mail-reply')?.addEventListener('click', () => draftReply(msg));
+            document.getElementById('btn-mail-write')?.addEventListener('click', () => {
+                if (msg.aiDraft === undefined) msg.aiDraft = '';
+                renderAiOut(msg);
+                document.getElementById('mail-draft')?.focus();
+            });
             renderAiOut(msg);
         };
         bind();
@@ -514,14 +558,190 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
 
     function draftReply(msg) {
         const instructions = (document.getElementById('mail-draft-inst')?.value || '').trim();
+        const current = msg.aiDraft || '';
         return withButton(msg.aiDraft === undefined ? 'btn-mail-reply' : 'btn-mail-redraft', 'Writing…', async () => {
             await ensureBody(msg);
             msg.aiDraft = await window.App.ai([
                 { role: 'system', content: 'Write a polite, concise reply to the email below, in the language of the email. If information is needed that you do not have, put a clear placeholder in square brackets. Output only the reply text, no subject line, no Markdown.' },
-                { role: 'user', content: `Email from: ${msg.from}\nSubject: ${msg.subject}\n\n${(msg.body || msg.snippet).slice(0, 12000)}\n\n${instructions ? `Instructions for the reply: ${instructions}` : ''}` }
+                { role: 'user', content: `Email from: ${msg.from}\nSubject: ${msg.subject}\n\n${(msg.body || msg.snippet).slice(0, 12000)}\n\n${current.trim() ? `Current draft of the reply:\n${current}\n\n` : ''}${instructions ? `Instructions for the reply: ${instructions}` : ''}` }
             ], { temperature: 0.6 });
             renderAiOut(msg);
         });
+    }
+
+    // ── Sending with a ten-second undo ───────────────────
+
+    let pendingSend = null;   // { timer, tick, accountId, msg, mail }
+
+    function utf8Base64(text) {
+        const bytes = new TextEncoder().encode(text);
+        let binary = '';
+        bytes.forEach(b => { binary += String.fromCharCode(b); });
+        return btoa(binary);
+    }
+
+    async function sendViaGmail(msg, mail) {
+        const subject = /^[\x20-\x7e]*$/.test(mail.subject) ? mail.subject : `=?UTF-8?B?${utf8Base64(mail.subject)}?=`;
+        const lines = [
+            `To: ${mail.to}`,
+            `Subject: ${subject}`,
+            'MIME-Version: 1.0',
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+        ];
+        if (mail.inReplyTo) lines.push(`In-Reply-To: ${mail.inReplyTo}`, `References: ${mail.references}`);
+        const raw = utf8Base64(lines.join('\r\n') + '\r\n\r\n' + utf8Base64(mail.body).replace(/(.{76})/g, '$1\r\n'))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${window.GoogleModule.getAccessToken()}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw, threadId: msg.threadId }),
+        });
+        if (!res.ok) throw new Error('Gmail did not accept the message.');
+    }
+
+    async function allowSending(account) {
+        if (account.canSend) return true;
+        if (!confirm(`Allow LifeOS to send email from ${account.label}?\n\nNothing is sent without you tapping Send, and every mail can be taken back for ${UNDO_SECONDS} seconds. You can switch this off again under Manage.`)) return false;
+        if (account.type === 'gmail') {
+            localStorage.setItem(GMAIL_SEND_KEY, 'yes');
+        } else {
+            await window.Store.api(`/api/mail/accounts/${account.id}/sending`, { method: 'POST', body: { allow: true } });
+            const stored = imapAccounts.find(a => a.id === account.id);
+            if (stored) stored.canSend = true;
+        }
+        return true;
+    }
+
+    async function startSend(msg) {
+        if (pendingSend) {
+            window.App.showToast('Another mail is still waiting to be sent.', 'info');
+            return;
+        }
+        const account = accounts().find(a => a.id === activeId);
+        const to = (msg.draftTo !== undefined ? msg.draftTo : (msg.replyTo || splitSender(msg.from).email)).trim();
+        const body = (msg.aiDraft || '').trim();
+        if (!/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(to)) return window.App.showToast(ERROR_TEXT.invalid_recipient, 'error');
+        if (!body) return window.App.showToast('The reply is empty.', 'error');
+        if (/\[[^\]\n]{2,60}\]/.test(body) && !confirm('The reply still contains a placeholder in [brackets]. Send anyway?')) return;
+
+        try {
+            if (!await allowSending(account)) return;
+        } catch (err) {
+            return window.App.showToast(errorText(err), 'error');
+        }
+
+        const references = [msg.references, msg.messageId].filter(Boolean).join(' ').trim();
+        const mail = {
+            to,
+            subject: /^re:/i.test(msg.subject) ? msg.subject : `Re: ${msg.subject}`,
+            body,
+            inReplyTo: msg.messageId || '',
+            references,
+        };
+        window.App.hideModal();
+
+        pendingSend = { msg, mail, accountId: activeId, timer: null, tick: null };
+        runCountdown();
+    }
+
+    /** Show the undo bar and send when it has run out. Nothing leaves the app before that. */
+    function runCountdown() {
+        const { mail } = pendingSend;
+        const bar = document.getElementById('undo-bar');
+        let remaining = UNDO_SECONDS;
+        bar.innerHTML = `
+            <span class="undo-text">Sending to ${esc(mail.to)} in ${remaining} s</span>
+            <button type="button" class="undo-btn" id="btn-undo-send">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+                Undo
+            </button>
+            <span class="undo-progress" style="animation-duration:${UNDO_SECONDS}s;"></span>`;
+        bar.classList.remove('hidden');
+        document.getElementById('btn-undo-send').addEventListener('click', undoSend);
+        clearTimeout(pendingSend.timer);
+        clearInterval(pendingSend.tick);
+        pendingSend.tick = setInterval(() => {
+            remaining--;
+            const text = bar.querySelector('.undo-text');
+            if (text && remaining > 0) text.textContent = `Sending to ${mail.to} in ${remaining} s`;
+        }, 1000);
+        pendingSend.timer = setTimeout(finishSend, UNDO_SECONDS * 1000);
+    }
+
+    function clearPending() {
+        if (!pendingSend) return null;
+        clearTimeout(pendingSend.timer);
+        clearInterval(pendingSend.tick);
+        const done = pendingSend;
+        pendingSend = null;
+        document.getElementById('undo-bar').classList.add('hidden');
+        return done;
+    }
+
+    function undoSend() {
+        const pending = clearPending();
+        if (!pending) return;
+        window.App.showToast('Not sent. Your reply is still there.', 'info');
+        if (pending.accountId === activeId) openMessage(pending.msg.id);
+    }
+
+    async function finishSend() {
+        const pending = clearPending();
+        if (!pending) return;
+        const { msg, mail, accountId } = pending;
+        try {
+            if (accountId === 'gmail') await sendViaGmail(msg, mail);
+            else await window.Store.api(`/api/mail/accounts/${accountId}/send`, { method: 'POST', body: mail, timeout: 60000 });
+            msg.aiDraft = undefined;
+            msg.draftTo = undefined;
+            msg.answered = true;
+            window.App.showToast(`Sent to ${mail.to}`, 'success');
+        } catch (err) {
+            console.error('Send failed:', err);
+            window.App.showToast(`Not sent: ${errorText(err)} Your reply is kept.`, 'error');
+        }
+    }
+
+    // A mail is never sent while the app is in the background: the countdown stops
+    // there and starts again, visibly, when the app is back. Closing the app drops it.
+    document.addEventListener('visibilitychange', () => {
+        if (!pendingSend) return;
+        if (document.hidden) {
+            clearTimeout(pendingSend.timer);
+            clearInterval(pendingSend.tick);
+        } else {
+            runCountdown();
+        }
+    });
+    window.addEventListener('pagehide', clearPending);
+
+    async function setSending(id, allow) {
+        try {
+            if (id === 'gmail') {
+                if (allow) localStorage.setItem(GMAIL_SEND_KEY, 'yes'); else localStorage.removeItem(GMAIL_SEND_KEY);
+            } else {
+                await window.Store.api(`/api/mail/accounts/${id}/sending`, { method: 'POST', body: { allow } });
+                const stored = imapAccounts.find(a => a.id === id);
+                if (stored) stored.canSend = allow;
+            }
+        } catch (err) {
+            window.App.showToast(errorText(err), 'error');
+        }
+        showAccounts();
+    }
+
+    /** Important unread mail of the mailboxes that are loaded, for the assistant. */
+    function getContextForAI() {
+        const lines = [];
+        accounts().forEach(account => {
+            const state = boxes[account.id];
+            if (!state || !state.messages) return;
+            state.messages.filter(m => m.category === 'important' && m.unread).slice(0, 8).forEach(m => {
+                lines.push(`[${account.label}] ${splitSender(m.from).name}: ${m.subject} — ${m.snippet.slice(0, 120)}`);
+            });
+        });
+        return lines;
     }
 
     function summarizeUnread() {
@@ -540,19 +760,24 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
     // ── Managing mailboxes ───────────────────────────────
 
     function showAccounts() {
-        if (imapAccounts.length === 0 && !gmailAvailable()) return showAddAccount();
-        const rows = imapAccounts.map(a => `
-            <div class="exercise-item">
+        const all = accounts();
+        if (all.length === 0) return showAddAccount();
+        const rows = all.map(a => {
+            const imap = imapAccounts.find(x => x.id === a.id);
+            return `
+            <div class="exercise-item" style="flex-wrap:wrap;">
                 <div class="exercise-info">
-                    <div class="exercise-name">${esc(a.email)}</div>
-                    <div class="exercise-detail">${esc(a.host)}</div>
+                    <div class="exercise-name">${esc(a.label)}</div>
+                    <div class="exercise-detail">${imap ? esc(imap.host) : 'connected through Google (Settings)'}</div>
                 </div>
-                <button class="btn btn-sm btn-danger" onclick="MailModule.removeAccount('${esc(a.id)}')">Remove</button>
-            </div>`).join('');
-        window.App.showModal('Mailboxes', `
-            ${gmailAvailable() ? `<p class="form-hint" style="margin-bottom:12px;">Gmail is connected through Google in Settings.</p>` : ''}
-            ${rows || '<p class="form-hint">No extra mailbox yet.</p>'}
-        `, `<button class="btn btn-primary" onclick="MailModule.showAddAccount()">Add mailbox</button>`);
+                ${imap ? `<button class="btn btn-sm btn-danger" onclick="MailModule.removeAccount('${esc(a.id)}')">Remove</button>` : ''}
+                <div class="mail-send-switch">
+                    <span>Sending ${a.canSend ? 'allowed' : 'off'}</span>
+                    <button class="btn btn-sm btn-ghost" onclick="MailModule.setSending('${esc(a.id)}', ${a.canSend ? 'false' : 'true'})">${a.canSend ? 'Switch off' : 'Allow'}</button>
+                </div>
+            </div>`;
+        }).join('');
+        window.App.showModal('Mailboxes', rows, `<button class="btn btn-primary" onclick="MailModule.showAddAccount()">Add mailbox</button>`);
     }
 
     function showAddAccount() {
@@ -626,7 +851,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
 
     window.MailModule = {
         init, renderSection, renderDashboard, fetchEmails, refresh, switchAccount, setTab, openMessage,
-        summarizeUnread, showAccounts, showAddAccount, removeAccount,
+        summarizeUnread, showAccounts, showAddAccount, removeAccount, setSending, getContextForAI,
     };
 
 })();
