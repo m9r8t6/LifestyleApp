@@ -2,7 +2,7 @@
 // reachable (so updates arrive immediately) and from the cache when offline.
 // API calls are never cached; the sync layer in js/store.js handles offline data.
 
-const CACHE_NAME = 'lifeos-shell-v46';
+const CACHE_NAME = 'lifeos-shell-v47';
 const SHELL = [
     './',
     './index.html',
@@ -64,5 +64,36 @@ self.addEventListener('fetch', (e) => {
         // Slow or no connection: answer from the cache, keep updating it in the background.
         const timeout = new Promise(resolve => setTimeout(() => resolve(cached), NETWORK_TIMEOUT_MS));
         return Promise.race([fromNetwork.catch(() => cached), timeout]);
+    })());
+});
+
+// ── Notifications sent by the server ─────────────────────
+
+self.addEventListener('push', (e) => {
+    let data = {};
+    try { data = e.data ? e.data.json() : {}; } catch (err) {}
+    e.waitUntil(self.registration.showNotification(data.title || 'LifeOS', {
+        body: data.body || '',
+        tag: data.tag,
+        icon: './icon-192.png',
+        badge: './icon-192.png',
+        data: { url: data.url || './' },
+    }));
+});
+
+// Tapping a notification brings the app to the front on the matching screen
+self.addEventListener('notificationclick', (e) => {
+    e.notification.close();
+    const url = new URL((e.notification.data && e.notification.data.url) || './', self.location.origin).href;
+    e.waitUntil((async () => {
+        const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of windows) {
+            if (new URL(client.url).origin === self.location.origin) {
+                await client.focus();
+                client.postMessage({ type: 'open', url });
+                return;
+            }
+        }
+        await self.clients.openWindow(url);
     })());
 });

@@ -522,6 +522,21 @@ window.App = (() => {
         refreshDashboard();
         _setupDayChangeDetection();
 
+        // Opened from a notification: go straight to the screen it was about
+        const openSection = (url) => {
+            const target = new URL(url, window.location.href).searchParams.get('open');
+            if (target && document.getElementById(`section-${target}`)) switchTab(target);
+        };
+        if (new URLSearchParams(window.location.search).has('open')) {
+            openSection(window.location.href);
+            history.replaceState(null, '', window.location.pathname);
+        }
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (e) => {
+                if (e.data && e.data.type === 'open') openSection(e.data.url);
+            });
+        }
+
         // 4. Keep saving in the background
         window.Store.on('remote', reloadData);
         window.Store.on('auth', () => {

@@ -41,6 +41,7 @@ window.Auth = (() => {
     /** Shows the form and resolves once sign-in succeeded. */
     function prompt(mode, message) {
         show(mode, message);
+        el('auth-submit').disabled = false;
         return new Promise(resolve => {
             const form = el('auth-form');
             form.onsubmit = async (e) => {
@@ -58,7 +59,7 @@ window.Auth = (() => {
                 try {
                     await window.Store.login(username, password, isSetup);
                     hide();
-                    form.onsubmit = null;
+                    form.onsubmit = () => false;
                     resolve();
                 } catch (err) {
                     el('auth-error').textContent = ERRORS[err.message]
@@ -81,6 +82,9 @@ window.Auth = (() => {
                 // Offline: carry on with the data cached on this device.
                 if (Store.user && Store.hasCache) return { offline: true };
                 show('login', 'The server cannot be reached. Retrying…');
+                // Nothing can be submitted until the server answers
+                el('auth-submit').disabled = true;
+                el('auth-form').onsubmit = () => false;
                 await new Promise(r => setTimeout(r, 3000));
                 continue;
             }

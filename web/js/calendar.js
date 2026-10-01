@@ -3,7 +3,6 @@
 
     const STORAGE_KEY = 'lifeos_calendar_events';
     let events = [];
-    let notificationInterval = null;
     let selectedDate = new Date();
 
     const t = (key) => window.i18n ? window.i18n.t(key) : key;
@@ -39,53 +38,8 @@
     function init() {
         loadEvents();
         
-        // Setup notification loop every 60 seconds
-        if (notificationInterval) clearInterval(notificationInterval);
-        notificationInterval = setInterval(checkNotifications, 60000);
-        
-        // Check immediately on load
-        checkNotifications();
-    }
-
-    function checkNotifications() {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-        const now = new Date();
-        const notifiedKey = 'lifeos_notified_events';
-        let notifiedEvents = {};
-        try {
-            notifiedEvents = JSON.parse(localStorage.getItem(notifiedKey)) || {};
-        } catch (e) { }
-
-        events.forEach(ev => {
-            if (!ev.reminder || ev.reminder === 'none') return;
-            if (!ev.date || !ev.time) return;
-
-            const eventTime = new Date(`${ev.date}T${ev.time}`);
-            let reminderTime = new Date(eventTime.getTime());
-
-            if (ev.reminder === '1h') reminderTime.setHours(reminderTime.getHours() - 1);
-            if (ev.reminder === '1d') reminderTime.setDate(reminderTime.getDate() - 1);
-
-            // If we are past the reminder time but haven't notified yet
-            // Wait, we only want to notify if it's within a 15 min window after reminderTime to avoid spamming old events
-            const diffMs = now - reminderTime;
-            const diffMins = diffMs / 60000;
-
-            if (diffMins >= 0 && diffMins <= 15 && !notifiedEvents[ev.id]) {
-                // Trigger notification
-                new Notification(ev.title, {
-                    body: `Upcoming event on ${ev.date} at ${ev.time}`,
-                    icon: 'icon-192.png'
-                });
-                // Vibrate if supported
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-
-                notifiedEvents[ev.id] = true;
-            }
-        });
-
-        localStorage.setItem(notifiedKey, JSON.stringify(notifiedEvents));
+        // Reminders are sent by the server as notifications (see Settings → Notifications)
+        localStorage.removeItem('lifeos_notified_events');
     }
 
     function renderSection(fromSync) {
@@ -244,8 +198,9 @@
                 <label class="form-label">Reminder</label>
                 <select id="event-reminder" class="form-select">
                     <option value="none">None</option>
-                    <option value="1h">1 Hour Before</option>
-                    <option value="1d">1 Day Before</option>
+                    <option value="15m">15 minutes before</option>
+                    <option value="1h" selected>1 hour before</option>
+                    <option value="1d">1 day before</option>
                 </select>
             </div>
         `;
@@ -367,7 +322,7 @@
         }
     }
 
-    function addEvent() {
+    async function addEvent() {
         const title = document.getElementById('event-title').value.trim();
         const date = document.getElementById('event-date').value;
         const time = document.getElementById('event-time').value;
@@ -396,9 +351,8 @@
         
         pushToGoogleCalendar(newEv);
         
-        // Trigger permission prompt if reminder set and not granted
-        if (reminder !== 'none' && 'Notification' in window && Notification.permission !== 'granted') {
-            Notification.requestPermission();
+        if (reminder !== 'none' && window.SettingsModule && !await window.SettingsModule.pushEnabledHere()) {
+            window.App.showToast('Turn on notifications in Settings to get this reminder on your phone.', 'info');
         }
     }
 
@@ -408,7 +362,7 @@
         if (!ev) return;
 
         const html = `
-            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">${esc(formatWhen(ev))}${ev.reminder && ev.reminder !== 'none' ? ` · reminder ${ev.reminder === '1h' ? '1 hour' : '1 day'} before` : ''}</div>
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">${esc(formatWhen(ev))}${ev.reminder && ev.reminder !== 'none' ? ` · reminder ${{ '15m': '15 minutes', '1h': '1 hour', '1d': '1 day' }[ev.reminder] || ''} before` : ''}</div>
             
             <div class="form-group">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">

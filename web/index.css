@@ -905,6 +905,8 @@ textarea.form-input { resize: vertical; line-height: 1.45; }
 .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 input[type="checkbox"] { accent-color: var(--primary); }
 
+.switch-row { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; cursor: pointer; }
+.switch-row input { width: 20px; height: 20px; flex-shrink: 0; }
 .settings-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .settings-actions .btn { width: 100%; padding: 10px 8px; }
 

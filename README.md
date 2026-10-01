@@ -64,6 +64,12 @@ marked as read, moved or deleted). Mail is sorted into Important / Updates / Fil
 catch social-network senders and obvious advertising, the AI decides the rest, and the result is
 remembered per message on the device.
 
+### Notifications
+
+Web Push: the API checks the saved data once a minute and sends event reminders (15 minutes, 1 hour
+or 1 day before) and one evening nudge when nothing was ticked off. Each device switches them on in
+Settings. The server's key pair is created on first start and stored encrypted in `app_secrets`.
+
 ## Local development
 
 ```bash

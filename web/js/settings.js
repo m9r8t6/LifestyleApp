@@ -5,6 +5,91 @@
         return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    // ── Push notifications (this device) ──
+    const NOTIFY_KEY = 'lifeos_notify';
+
+    function loadNotify() {
+        let stored = {};
+        try { stored = JSON.parse(localStorage.getItem(NOTIFY_KEY)) || {}; } catch (e) {}
+        return { events: stored.events !== false, nudge: stored.nudge !== false, nudgeTime: /^\d{2}:\d{2}$/.test(stored.nudgeTime || '') ? stored.nudgeTime : '19:00' };
+    }
+
+    const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    async function currentSubscription() {
+        if (!pushSupported()) return null;
+        const registration = await navigator.serviceWorker.getRegistration();
+        return registration ? registration.pushManager.getSubscription() : null;
+    }
+
+    async function pushEnabledHere() {
+        try { return Boolean(await currentSubscription()) && Notification.permission === 'granted'; } catch (e) { return false; }
+    }
+
+    function keyToBytes(base64Url) {
+        const base64 = (base64Url + '='.repeat((4 - base64Url.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    }
+
+    async function refreshPushStatus() {
+        const status = document.getElementById('push-status');
+        const toggle = document.getElementById('btn-push-toggle');
+        const test = document.getElementById('btn-push-test');
+        if (!status || !toggle) return;
+
+        if (!pushSupported()) {
+            const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            status.textContent = ios
+                ? 'On an iPhone, add LifeOS to the home screen first (Share → Add to Home Screen) and open it from there.'
+                : (window.isSecureContext ? 'This browser does not support notifications.' : 'Notifications need the https address of the app.');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            status.textContent = 'Notifications are blocked for LifeOS in this browser. Allow them in the browser\'s site settings, then come back.';
+            return;
+        }
+        const on = await pushEnabledHere();
+        status.textContent = on
+            ? 'On for this device. Reminders arrive even when the app is closed.'
+            : 'Off on this device. Turn them on to get reminders when the app is closed.';
+        toggle.textContent = on ? 'Turn off' : 'Turn on';
+        toggle.className = on ? 'btn btn-ghost' : 'btn btn-primary';
+        toggle.disabled = false;
+        if (test) test.disabled = !on;
+    }
+
+    async function togglePush() {
+        const toggle = document.getElementById('btn-push-toggle');
+        toggle.disabled = true;
+        try {
+            const existing = await currentSubscription();
+            if (existing) {
+                await window.Store.api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: existing.endpoint } }).catch(() => {});
+                await existing.unsubscribe();
+            } else {
+                if (await Notification.requestPermission() !== 'granted') {
+                    window.App.showToast('Notifications were not allowed.', 'error');
+                    return;
+                }
+                const { publicKey } = await window.Store.api('/api/push/key');
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) });
+                await window.Store.api('/api/push/subscribe', {
+                    method: 'POST',
+                    body: { subscription: subscription.toJSON(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+                });
+                // Make sure the server knows the current preferences
+                localStorage.setItem(NOTIFY_KEY, JSON.stringify(loadNotify()));
+                window.App.showToast('Notifications are on for this device', 'success');
+            }
+        } catch (err) {
+            console.error('Push setup failed:', err);
+            window.App.showToast('Notifications could not be switched. Please try again.', 'error');
+        } finally {
+            refreshPushStatus();
+        }
+    }
+
     function init() {
         // Just bind some events, rendering is done when section is active?
         // Let's render once on init
@@ -33,6 +118,8 @@
             const stored = localStorage.getItem('lifeos_profile');
             if (stored) profile = JSON.parse(stored);
         } catch(e) {}
+
+        const notify = loadNotify();
 
         const html = `
             <div class="card-header-row">
@@ -68,6 +155,21 @@
                         <button type="button" class="time-toggle-btn ${soundOn ? 'active' : ''}" id="btn-sound-on">${t('on')}</button>
                         <button type="button" class="time-toggle-btn ${!soundOn ? 'active' : ''}" id="btn-sound-off">${t('off')}</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="glass-card stagger-item" style="margin-top: 24px;">
+                <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Notifications</h3>
+                <p id="push-status" class="form-hint" style="margin:4px 0 14px;">Checking…</p>
+                <div class="settings-actions" style="margin-bottom:16px;">
+                    <button class="btn btn-primary" id="btn-push-toggle" disabled>Turn on</button>
+                    <button class="btn btn-ghost" id="btn-push-test" disabled>Send a test</button>
+                </div>
+                <label class="switch-row"><input type="checkbox" id="notify-events" ${notify.events ? 'checked' : ''}> <span>Reminders for calendar events</span></label>
+                <label class="switch-row"><input type="checkbox" id="notify-nudge" ${notify.nudge ? 'checked' : ''}> <span>Evening nudge if nothing is ticked off</span></label>
+                <div class="form-group" style="margin:10px 0 0;">
+                    <label class="form-label" for="notify-time">Nudge time</label>
+                    <input type="time" id="notify-time" class="form-input" value="${escapeHtml(notify.nudgeTime)}" style="max-width:160px;">
                 </div>
             </div>
 
@@ -229,6 +331,26 @@
             if (window.GoogleModule) window.GoogleModule.disconnect();
         });
 
+        // ── Notifications ──
+        const saveNotify = () => {
+            localStorage.setItem(NOTIFY_KEY, JSON.stringify({
+                events: document.getElementById('notify-events').checked,
+                nudge: document.getElementById('notify-nudge').checked,
+                nudgeTime: document.getElementById('notify-time').value || '19:00',
+            }));
+        };
+        ['notify-events', 'notify-nudge', 'notify-time'].forEach(id => document.getElementById(id)?.addEventListener('change', saveNotify));
+        document.getElementById('btn-push-toggle')?.addEventListener('click', togglePush);
+        document.getElementById('btn-push-test')?.addEventListener('click', async () => {
+            try {
+                await window.Store.api('/api/push/test', { method: 'POST', body: {} });
+                window.App.showToast('Test sent. It should appear in a moment.', 'success');
+            } catch (err) {
+                window.App.showToast(err.message === 'no_device_subscribed' ? 'Turn notifications on first.' : 'The test could not be sent.', 'error');
+            }
+        });
+        refreshPushStatus();
+
         // ── Account & data ──
         document.getElementById('btn-export-data')?.addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(window.Store.exportData(), null, 2)], { type: 'application/json' });
@@ -324,6 +446,6 @@
         });
     }
 
-    window.SettingsModule = { init, renderSection };
+    window.SettingsModule = { init, renderSection, pushEnabledHere };
 
 })();
