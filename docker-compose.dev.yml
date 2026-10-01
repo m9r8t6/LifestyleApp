@@ -21,9 +21,23 @@ services:
       LIFESTYLE_PUBLIC_URL: ${LIFESTYLE_PUBLIC_URL:-http://localhost:8099}
       LIFESTYLE_GOOGLE_CLIENT_ID: ${LIFESTYLE_GOOGLE_CLIENT_ID:-}
       LIFESTYLE_GOOGLE_CLIENT_SECRET: ${LIFESTYLE_GOOGLE_CLIENT_SECRET:-}
-      LIFESTYLE_TOKEN_KEY: ${LIFESTYLE_TOKEN_KEY:-}
+      LIFESTYLE_TOKEN_KEY: ${LIFESTYLE_TOKEN_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      LIFESTYLE_MAIL_TLS_INSECURE: "true"   # the test mail server below uses a self-signed certificate
     depends_on:
       - lifestyle-db
+
+  # Test mail server (IMAPS on mail.dev.test:3993, SMTP on localhost:3025, mailbox info@ainstein.test / secret)
+  greenmail:
+    image: greenmail/standalone:2.1.2
+    environment:
+      GREENMAIL_OPTS: -Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.users=info:secret@ainstein.test,office:secret@basement.test -Dgreenmail.users.login=email
+    ports:
+      - "127.0.0.1:3025:3025"
+      - "127.0.0.1:3993:3993"
+    networks:
+      default:
+        aliases:
+          - mail.dev.test
 
   lifestyle-web:
     build: ./web

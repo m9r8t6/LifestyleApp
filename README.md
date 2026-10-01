@@ -56,11 +56,20 @@ LIFESTYLE_GOOGLE_CLIENT_SECRET=...
 The Google OAuth client needs `https://<your hostname>/api/google/callback` as an authorised redirect URI.
 Without these values Mail and Calendar stay switched off.
 
+### Mailboxes
+
+Besides Gmail, IMAP mailboxes (for example all-inkl) can be added in the Mail screen. The login is
+checked, the password is stored encrypted, and the server reads the inbox read-only (nothing is
+marked as read, moved or deleted). Mail is sorted into Important / Updates / Filtered: fixed rules
+catch social-network senders and obvious advertising, the AI decides the rest, and the result is
+remembered per message on the device.
+
 ## Local development
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build   # http://localhost:8099
 cd api && LIFESTYLE_DATABASE_URL=postgres://postgres:dev@127.0.0.1:55432/lifestyle_db npm test
+# the dev stack includes a test mail server: mailbox info@ainstein.test / secret, IMAP host mail.dev.test, port 3993
 ```
 
 Note: `npm test` empties the tables of the database it points at.

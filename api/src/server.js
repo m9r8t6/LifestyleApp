@@ -4,6 +4,7 @@ const express = require('express');
 const { pool, migrate, tx } = require('./db');
 const auth = require('./auth');
 const google = require('./google');
+const mail = require('./mail');
 
 const PORT = Number(process.env.PORT || 3000);
 const ALLOW_SIGNUP = process.env.LIFESTYLE_ALLOW_SIGNUP === 'true';
@@ -324,6 +325,7 @@ app.post('/api/ai/chat', auth.requireUser, wrap(async (req, res) => {
 }));
 
 app.use('/api/google', google.router);
+app.use('/api/mail', mail.router);
 
 // ── Errors ───────────────────────────────────────────────
 
@@ -331,13 +333,16 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 
 app.use((err, req, res, next) => {
     const status = err.status || (err.type === 'entity.too.large' ? 413 : 500);
-    if (status >= 500) console.error('[api]', err);
-    res.status(status).json({ error: status >= 500 ? 'server_error' : err.message });
+    // Errors raised on purpose carry a status and a short code that is safe to show
+    const expected = Boolean(err.status);
+    if (!expected) console.error('[api]', err);
+    res.status(status).json({ error: expected || status < 500 ? err.message : 'server_error' });
 });
 
 async function start() {
     await migrate();
     await google.migrate();
+    await mail.migrate();
     await pool.query('DELETE FROM sessions WHERE expires_at < now()');
     return app.listen(PORT, () => console.log(`[lifestyle-api] listening on ${PORT}`));
 }

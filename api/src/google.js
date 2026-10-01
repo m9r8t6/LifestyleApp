@@ -8,14 +8,11 @@ const crypto = require('crypto');
 const express = require('express');
 const { pool } = require('./db');
 const auth = require('./auth');
+const { encrypt, decrypt, available: canEncrypt } = require('./secretbox');
 
 const CLIENT_ID = process.env.LIFESTYLE_GOOGLE_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.LIFESTYLE_GOOGLE_CLIENT_SECRET || '';
 const PUBLIC_URL = (process.env.LIFESTYLE_PUBLIC_URL || '').replace(/\/+$/, '');
-const TOKEN_KEY = /^[0-9a-f]{64}$/i.test(process.env.LIFESTYLE_TOKEN_KEY || '')
-    ? Buffer.from(process.env.LIFESTYLE_TOKEN_KEY, 'hex')
-    : null;
-
 const SCOPES = [
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/gmail.modify',
@@ -23,7 +20,7 @@ const SCOPES = [
 const STATE_COOKIE = 'lifeos_gstate';
 const REDIRECT_URI = `${PUBLIC_URL}/api/google/callback`;
 
-const configured = Boolean(CLIENT_ID && CLIENT_SECRET && PUBLIC_URL && TOKEN_KEY);
+const configured = Boolean(CLIENT_ID && CLIENT_SECRET && PUBLIC_URL && canEncrypt);
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS google_tokens (
@@ -33,22 +30,6 @@ CREATE TABLE IF NOT EXISTS google_tokens (
     connected_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 `;
-
-// ── Encryption at rest (AES-256-GCM) ─────────────────────
-
-function encrypt(plain) {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', TOKEN_KEY, iv);
-    const data = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-    return [iv, cipher.getAuthTag(), data].map(b => b.toString('base64')).join('.');
-}
-
-function decrypt(stored) {
-    const [iv, tag, data] = stored.split('.').map(part => Buffer.from(part, 'base64'));
-    const decipher = crypto.createDecipheriv('aes-256-gcm', TOKEN_KEY, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-}
 
 // ── Google token endpoint ────────────────────────────────
 

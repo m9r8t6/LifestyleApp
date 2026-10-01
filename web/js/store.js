@@ -17,6 +17,7 @@ window.Store = (() => {
         'lifeos_google_access_token',
         'lifeos_google_token_expiry',
         'lifeos_notified_events',
+        'lifeos_mail_classes',
         'lifeos_theme',
     ]);
     const PUSH_DELAY_MS = 800;
