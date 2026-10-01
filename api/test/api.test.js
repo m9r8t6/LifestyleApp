@@ -8,6 +8,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.PORT = '0';
+process.env.LIFESTYLE_GOOGLE_CLIENT_ID = 'test-client.apps.googleusercontent.com';
+process.env.LIFESTYLE_GOOGLE_CLIENT_SECRET = 'test-secret';
+process.env.LIFESTYLE_PUBLIC_URL = 'https://life.example.test';
+process.env.LIFESTYLE_TOKEN_KEY = 'ab'.repeat(32);
+
+// Google's token endpoint is faked; everything else uses the real network stack.
+const realFetch = global.fetch;
+const googleCalls = [];
+global.fetch = async (url, options) => {
+    if (!String(url).startsWith('https://oauth2.googleapis.com/')) return realFetch(url, options);
+    const params = Object.fromEntries(new URLSearchParams(options.body));
+    googleCalls.push({ url: String(url), params });
+    const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    if (String(url).endsWith('/revoke')) return json(200, {});
+    if (params.grant_type === 'authorization_code') {
+        return params.code === 'good-code'
+            ? json(200, { access_token: 'access-1', refresh_token: 'refresh-secret', expires_in: 3600, scope: 'x' })
+            : json(400, { error: 'invalid_grant' });
+    }
+    return params.refresh_token === 'refresh-secret'
+        ? json(200, { access_token: 'access-2', expires_in: 3600 })
+        : json(400, { error: 'invalid_grant' });
+};
 const { start } = require('../src/server');
 const { pool } = require('../src/db');
 
@@ -16,15 +39,25 @@ let server;
 
 function client() {
     let cookie = '';
+    const jar = {};
     return async function call(method, path, body, headers = {}) {
         const res = await fetch(base + path, {
             method,
+            redirect: 'manual',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos', Cookie: cookie, ...headers },
             body: body ? JSON.stringify(body) : undefined,
         });
         const setCookie = res.headers.get('set-cookie');
-        if (setCookie) cookie = setCookie.split(';')[0];
-        return { status: res.status, body: await res.json(), setCookie };
+        for (const line of res.headers.getSetCookie()) {
+            const [pair] = line.split(';');
+            const name = pair.split('=')[0];
+            jar[name] = pair.slice(name.length + 1);
+        }
+        cookie = Object.entries(jar).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join('; ');
+        const text = await res.text();
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch (e) {}
+        return { status: res.status, body: parsed, setCookie, location: res.headers.get('location') };
     };
 }
 
@@ -152,6 +185,52 @@ test('invalid input is rejected', async () => {
     assert.equal(r.status, 400);
     r = await phone('POST', '/api/ai/chat', { messages: [{ role: 'user', content: 'hi' }] });
     assert.equal(r.status, 503); // no key configured in tests
+});
+
+test('google connection is held by the server', async () => {
+    const phone = client();
+    await phone('POST', '/api/auth/login', { username: 'tester', password: 'correct horse battery' });
+
+    let r = await phone('GET', '/api/google/status');
+    assert.deepEqual(r.body, { configured: true, connected: false, clientId: 'test-client.apps.googleusercontent.com' });
+    r = await phone('GET', '/api/google/token');
+    assert.equal(r.status, 404);
+
+    r = await phone('GET', '/api/google/connect');
+    assert.equal(r.status, 302);
+    const consent = new URL(r.location);
+    assert.equal(consent.hostname, 'accounts.google.com');
+    assert.equal(consent.searchParams.get('redirect_uri'), 'https://life.example.test/api/google/callback');
+    assert.equal(consent.searchParams.get('access_type'), 'offline');
+    const state = consent.searchParams.get('state');
+
+    // A forged state is refused and nothing is stored.
+    r = await phone('GET', '/api/google/callback?code=good-code&state=forged');
+    assert.equal(r.location, '/?google=failed');
+
+    r = await phone('GET', '/api/google/connect');
+    const state2 = new URL(r.location).searchParams.get('state');
+    assert.notEqual(state2, state);
+    r = await phone('GET', `/api/google/callback?code=good-code&state=${state2}`);
+    assert.equal(r.location, '/?google=connected');
+
+    // Stored encrypted, not in plain text.
+    const { rows } = await pool.query('SELECT refresh_token FROM google_tokens');
+    assert.equal(rows.length, 1);
+    assert.ok(!rows[0].refresh_token.includes('refresh-secret'));
+
+    r = await phone('GET', '/api/google/token');
+    assert.equal(r.body.access_token, 'access-1');
+
+    // Somebody who is not signed in gets nothing.
+    r = await client()('GET', '/api/google/token');
+    assert.equal(r.status, 401);
+
+    r = await phone('POST', '/api/google/disconnect', {});
+    assert.equal(r.status, 200);
+    assert.equal(googleCalls.at(-1).params.token, 'refresh-secret');
+    r = await phone('GET', '/api/google/status');
+    assert.equal(r.body.connected, false);
 });
 
 test('changing the password signs out other devices; logout ends the session', async () => {

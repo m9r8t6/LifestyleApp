@@ -38,9 +38,23 @@ the `kv_history` table (the last 30 versions per value).
 Copies `api/` and `web/` to `~/ai-backend/apps/lifestyle-api` and `lifestyle-web`, creates the
 `lifestyle_db` database on first run and rebuilds the two containers. The app then runs on port 3110.
 
-For Google sign-in (Mail, Calendar), installing the app on the phone and using it away from home,
-the app needs an HTTPS address: add a public hostname in the Cloudflare tunnel that points to
-`http://lifestyle-web:80`, and add that address to the Google OAuth client's authorised origins.
+### Public address and Google
+
+`lifestyle-tunnel` is the app's own Cloudflare tunnel (`LIFESTYLE_TUNNEL_TOKEN` in the server's `.env`).
+In the Cloudflare dashboard the tunnel needs a public hostname with the service `http://lifestyle-web:80`.
+
+With these three values in the server's `.env` the server holds the Google connection (Gmail, Calendar):
+the user approves once, the refresh token is stored encrypted (`LIFESTYLE_TOKEN_KEY`) and browsers only
+get short-lived access tokens.
+
+```
+LIFESTYLE_PUBLIC_URL=https://<your hostname>
+LIFESTYLE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+LIFESTYLE_GOOGLE_CLIENT_SECRET=...
+```
+
+The Google OAuth client needs `https://<your hostname>/api/google/callback` as an authorised redirect URI.
+Without these values the app falls back to Google's sign-in inside the browser (hourly tokens).
 
 ## Local development
 

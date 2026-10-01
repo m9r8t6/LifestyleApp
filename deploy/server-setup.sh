@@ -21,6 +21,15 @@ if ! grep -q '^LIFESTYLE_DB_PASS=' "$ENV_FILE"; then
     } >> "$ENV_FILE"
     echo "Added LIFESTYLE_* entries to .env"
 fi
+# Key that encrypts the stored Google connection
+if ! grep -q '^LIFESTYLE_TOKEN_KEY=' "$ENV_FILE"; then
+    echo "LIFESTYLE_TOKEN_KEY=$(openssl rand -hex 32)" >> "$ENV_FILE"
+fi
+# Filled in by hand once they exist
+for key in LIFESTYLE_PUBLIC_URL LIFESTYLE_GOOGLE_CLIENT_ID LIFESTYLE_GOOGLE_CLIENT_SECRET; do
+    grep -q "^${key}=" "$ENV_FILE" || echo "${key}=" >> "$ENV_FILE"
+done
+
 DB_PASS="$(grep -E '^LIFESTYLE_DB_PASS=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
 
 if [ "$($PG -Atc "SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'")" != "1" ]; then

@@ -18,6 +18,10 @@ services:
     environment:
       LIFESTYLE_DATABASE_URL: postgres://postgres:dev@lifestyle-db:5432/lifestyle_db
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      LIFESTYLE_PUBLIC_URL: ${LIFESTYLE_PUBLIC_URL:-http://localhost:8099}
+      LIFESTYLE_GOOGLE_CLIENT_ID: ${LIFESTYLE_GOOGLE_CLIENT_ID:-}
+      LIFESTYLE_GOOGLE_CLIENT_SECRET: ${LIFESTYLE_GOOGLE_CLIENT_SECRET:-}
+      LIFESTYLE_TOKEN_KEY: ${LIFESTYLE_TOKEN_KEY:-}
     depends_on:
       - lifestyle-db
 

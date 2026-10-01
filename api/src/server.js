@@ -3,6 +3,7 @@
 const express = require('express');
 const { pool, migrate, tx } = require('./db');
 const auth = require('./auth');
+const google = require('./google');
 
 const PORT = Number(process.env.PORT || 3000);
 const ALLOW_SIGNUP = process.env.LIFESTYLE_ALLOW_SIGNUP === 'true';
@@ -322,6 +323,8 @@ app.post('/api/ai/chat', auth.requireUser, wrap(async (req, res) => {
     }
 }));
 
+app.use('/api/google', google.router);
+
 // ── Errors ───────────────────────────────────────────────
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
@@ -334,6 +337,7 @@ app.use((err, req, res, next) => {
 
 async function start() {
     await migrate();
+    await google.migrate();
     await pool.query('DELETE FROM sessions WHERE expires_at < now()');
     return app.listen(PORT, () => console.log(`[lifestyle-api] listening on ${PORT}`));
 }

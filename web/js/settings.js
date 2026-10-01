@@ -22,6 +22,7 @@
         const theme = window.App ? window.App.getTheme() : 'system';
         const store = window.Store;
         const googleReady = Boolean(window.GoogleModule && window.GoogleModule.isReady);
+        const serverGoogle = Boolean(window.GoogleModule && window.GoogleModule.serverManaged);
         const lastSync = store && store.lastSync
             ? new Date(store.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : '';
@@ -89,10 +90,14 @@
 
             <div class="glass-card stagger-item" style="margin-top: 24px;">
                 <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Google (Mail &amp; Calendar)</h3>
+                ${serverGoogle ? `
+                <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 16px;">
+                    ${googleReady ? 'Connected. The server keeps the connection, so you do not have to sign in again.' : 'Approve access once; the server keeps the connection for all your devices.'}
+                </p>` : `
                 <div class="form-group" style="margin-top: 12px;">
                     <label class="form-label">Google Cloud Client ID</label>
                     <input type="text" id="input-google-client" class="form-input" value="${escapeHtml(localStorage.getItem('lifeos_google_client_id') || '')}" placeholder="...apps.googleusercontent.com" autocapitalize="off" autocorrect="off" spellcheck="false">
-                </div>
+                </div>`}
                 <div class="settings-actions">
                     <button class="btn btn-ghost" id="btn-auth-google" style="color:var(--accent);">${googleReady ? 'Google connected ✓' : 'Connect Google'}</button>
                     ${googleReady ? '<button class="btn btn-ghost" id="btn-disconnect-google">Disconnect</button>' : ''}

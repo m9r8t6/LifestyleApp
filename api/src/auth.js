@@ -53,7 +53,7 @@ function setSessionCookie(req, res, token) {
     ];
     // The app is reachable over plain HTTP on the LAN and over HTTPS through the tunnel.
     if (req.secure) attrs.push('Secure');
-    res.setHeader('Set-Cookie', attrs.join('; '));
+    res.append('Set-Cookie', attrs.join('; '));
 }
 
 async function createSession(req, res, userId) {
@@ -146,6 +146,7 @@ module.exports = {
     destroySession,
     currentUser,
     requireUser,
+    readCookie,
     throttleKey,
     isThrottled,
     recordFailure,

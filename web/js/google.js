@@ -1,8 +1,11 @@
 /* =========================================================
  *  LifeOS — Google connection  (google.js)
- *  Signs in to Google for Gmail and Calendar. App data is no
- *  longer stored in Drive; the only Drive code left fetches
- *  the old backup once so it can be imported.
+ *  Gmail and Calendar access. When the server holds the Google
+ *  connection (approved once, kept there), this file only asks
+ *  it for short-lived access tokens. Without that setup it
+ *  falls back to Google's sign-in inside the browser.
+ *  App data is no longer stored in Drive; the only Drive code
+ *  left fetches the old backup once so it can be imported.
  * ========================================================= */
 
 (function() {
@@ -13,9 +16,34 @@
     const AUTO_CONNECT = 'lifeos_google_auto_connect';
 
     let accessToken = null;
+    let server = { configured: false, connected: false, clientId: null };
+    let refreshTimer = null;
+    let started = false;
 
-    function init() {
-        if (accessToken || localStorage.getItem(AUTO_CONNECT) !== 'true') return;
+    async function init() {
+        if (started) return;
+        started = true;
+
+        try {
+            server = await window.Store.api('/api/google/status');
+        } catch (e) {}
+
+        if (server.configured) {
+            const outcome = new URLSearchParams(window.location.search).get('google');
+            if (outcome) {
+                history.replaceState(null, '', window.location.pathname);
+                if (window.App) {
+                    window.App.showToast(outcome === 'connected' ? 'Google connected' : 'Google could not be connected', outcome === 'connected' ? 'success' : 'error');
+                }
+            }
+            if (server.connected) await loadServerToken();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && server.connected) loadServerToken(true);
+            });
+            return;
+        }
+
+        if (localStorage.getItem(AUTO_CONNECT) !== 'true') return;
 
         const cachedToken = localStorage.getItem('lifeos_google_access_token');
         const tokenExpiry = localStorage.getItem('lifeos_google_token_expiry');
@@ -31,6 +59,28 @@
         }
     }
 
+    /** Server mode: fetch a fresh access token and renew it before it runs out. */
+    async function loadServerToken(quiet) {
+        clearTimeout(refreshTimer);
+        try {
+            const data = await window.Store.api('/api/google/token');
+            const first = accessToken === null;
+            accessToken = data.access_token;
+            refreshTimer = setTimeout(() => loadServerToken(true), Math.max(60, data.expires_in - 300) * 1000);
+            if (first && !quiet) onAuthSuccess();
+            else if (first && window.SettingsModule) window.SettingsModule.renderSection();
+        } catch (err) {
+            if (err.status === 404) {
+                // Access was withdrawn at Google
+                accessToken = null;
+                server.connected = false;
+                if (window.SettingsModule) window.SettingsModule.renderSection();
+            } else {
+                refreshTimer = setTimeout(() => loadServerToken(true), 60000);
+            }
+        }
+    }
+
     function onAuthSuccess() {
         if (window.SettingsModule) window.SettingsModule.renderSection();
         if (window.MailModule && window.MailModule.fetchEmails) window.MailModule.fetchEmails();
@@ -38,7 +88,7 @@
 
     function requestToken(scope, silent) {
         return new Promise((resolve, reject) => {
-            const clientId = localStorage.getItem('lifeos_google_client_id');
+            const clientId = server.clientId || localStorage.getItem('lifeos_google_client_id');
             if (!clientId) return reject(new Error('Please set your Google Client ID first.'));
             if (!window.google || !google.accounts || !google.accounts.oauth2) {
                 return reject(new Error('Google sign-in could not be loaded.'));
@@ -57,6 +107,11 @@
     }
 
     async function authGoogle(isAuto = false) {
+        if (server.configured) {
+            // Approve once at Google; the server keeps the connection from then on.
+            if (!isAuto) window.location.href = '/api/google/connect';
+            return;
+        }
         try {
             const response = await requestToken(SCOPES, isAuto);
             accessToken = response.access_token;
@@ -71,7 +126,12 @@
         }
     }
 
-    function disconnect() {
+    async function disconnect() {
+        if (server.configured) {
+            try { await window.Store.api('/api/google/disconnect', { method: 'POST', body: {} }); } catch (e) {}
+            server.connected = false;
+            clearTimeout(refreshTimer);
+        }
         accessToken = null;
         localStorage.removeItem('lifeos_google_access_token');
         localStorage.removeItem('lifeos_google_token_expiry');
@@ -111,6 +171,7 @@
         fetchDriveBackup,
         getAccessToken: () => accessToken,
         get isReady() { return accessToken !== null; },
+        get serverManaged() { return server.configured; },
     };
     // Mail and Calendar still look the connection up under its old name.
     window.RAGModule = window.GoogleModule;
