@@ -5,6 +5,7 @@
     let todos = [];
 
     const t = (key) => window.i18n ? window.i18n.t(key) : key;
+    const esc = (text) => window.App.esc(text);
 
     function generateId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
@@ -13,6 +14,7 @@
     function init() {
         try {
             todos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            if (!Array.isArray(todos)) todos = [];
         } catch (e) {
             todos = [];
         }
@@ -36,7 +38,7 @@
                 <button class="btn btn-primary btn-sm" onclick="TodoModule.showAddModal()">Add Task</button>
             </div>
             
-            <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
         `;
 
         if (pending.length === 0 && completed.length === 0) {
@@ -46,18 +48,18 @@
         const renderItem = (item, idx) => `
             <div class="checklist-item stagger-item ${item.completed ? 'checked' : ''}" onclick="TodoModule.toggleTask('${item.id}')">
                 <div class="checklist-check">✓</div>
-                <div class="checklist-item-content" style="${item.completed ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">
-                    <div style="font-weight: 600;">${item.title}</div>
-                    ${item.description ? `<div style="font-size: 0.8rem; margin-top: 4px; ${item.completed ? 'color: var(--text-muted);' : 'color: var(--text-secondary);'}">${item.description}</div>` : ''}
+                <div class="checklist-content">
+                    <div class="checklist-text">${esc(item.title)}</div>
+                    ${item.description ? `<div class="checklist-sub">${esc(item.description)}</div>` : ''}
                 </div>
-                <button class="btn btn-icon btn-sm" style="border:none; background:transparent; margin-left:auto; color:var(--error);" onclick="event.stopPropagation(); TodoModule.deleteTask('${item.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                <button class="btn-icon btn-quiet" aria-label="Delete task" onclick="event.stopPropagation(); TodoModule.deleteTask('${item.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
             </div>
         `;
 
         pending.forEach((item, idx) => { html += renderItem(item, idx); });
         
         if (completed.length > 0) {
-            html += `<h3 style="margin-top: 16px; font-size: 0.9rem; color: var(--text-muted);">Completed</h3>`;
+            html += `<div class="card-header-row" style="margin:16px 0 0;"><h3 class="group-heading" style="margin:0;">Completed</h3><button class="btn btn-sm btn-ghost" onclick="TodoModule.clearCompleted()">Clear</button></div>`;
             completed.forEach((item, idx) => { html += renderItem(item, idx + pending.length); });
         }
 
@@ -65,24 +67,7 @@
         container.innerHTML = html;
     }
 
-    function renderDashboard() {
-        const container = document.getElementById('dashboard-todo');
-        if (!container) return; // Might not exist if we didn't add it to dashboard.js
-
-        const pending = todos.filter(x => !x.completed).length;
-        if (pending > 0) {
-            container.innerHTML = `
-                <div class="dashboard-block glass-card stagger-item">
-                    <div class="card-header-row">
-                        <h3>Tasks</h3>
-                    </div>
-                    <div style="font-size: 0.9rem; color: var(--text-muted);">You have ${pending} pending task(s).</div>
-                </div>
-            `;
-        } else {
-            container.innerHTML = '';
-        }
-    }
+    function renderDashboard() {}
 
     function showAddModal() {
         if (!window.App) return;
@@ -90,7 +75,7 @@
         const html = `
             <div class="form-group">
                 <label class="form-label">Task Title</label>
-                <input type="text" id="todo-title" class="form-input" placeholder="e.g. Buy groceries">
+                <input type="text" id="todo-title" class="form-input" placeholder="e.g. Buy groceries" enterkeyhint="done">
             </div>
             <div class="form-group">
                 <label class="form-label">Description (Optional)</label>
@@ -129,12 +114,7 @@
             task.completed = !task.completed;
             saveTodos();
             renderSection();
-            if (window.App) {
-                window.App.refreshDashboard();
-                if (task.completed) {
-                    window.App.onCompletionChange(); // Gamification integration
-                }
-            }
+            if (window.App) window.App.refreshDashboard();
         }
     }
 
@@ -146,12 +126,24 @@
         if (window.App) window.App.refreshDashboard();
     }
     
+    function clearCompleted() {
+        todos = todos.filter(t => !t.completed);
+        saveTodos();
+        renderSection();
+    }
+
+    /** Open tasks for the Today screen and the assistant. */
+    function getPending() {
+        return todos.filter(x => !x.completed).sort((a, b) => b.createdAt - a.createdAt)
+            .map(x => ({ id: x.id, title: x.title, description: x.description }));
+    }
+
     function getCompletionData() {
         // Return 5 XP per completed task today? 
         // We don't track completion date in this simple version, so let's skip daily XP or just return static for now.
         return { completed: 0, total: 0 }; 
     }
 
-    window.TodoModule = { init, renderSection, renderDashboard, showAddModal, addTask, toggleTask, deleteTask, getCompletionData };
+    window.TodoModule = { init, renderSection, renderDashboard, showAddModal, addTask, toggleTask, deleteTask, clearCompleted, getPending, getCompletionData };
 
 })();

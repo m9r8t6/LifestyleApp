@@ -4,6 +4,8 @@
     const STORAGE_RECIPES = 'lifeos_recipes';
     const STORAGE_PLAN = 'lifeos_meal_plan'; // { date: mealIds[] }
     const STORAGE_COMPLETION = 'lifeos_meal_completion';
+    const STORAGE_SHOPPING = 'lifeos_shopping_checked'; // { week: 'YYYY-MM-DD', keys: [] }
+    const NUTRIENT_KEYS = ['calories', 'protein', 'fiber', 'zinc', 'omega3', 'vitaminA', 'iron', 'vitaminB12', 'vitaminC', 'vitaminD', 'vitaminE', 'biotin', 'magnesium'];
 
     let DAILY_TARGETS = {};
 
@@ -175,30 +177,45 @@
     const t = (k) => window.i18n ? window.i18n.t(k) : k;
 
     // --- Helpers ---
-    function getToday() {
-        return window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10);
-    }
-    function addDays(dateStr, days) {
-        const d = new Date(dateStr);
-        d.setDate(d.getDate() + days);
-        return d.toISOString().slice(0, 10);
+    const esc = (text) => window.App.esc(text);
+    const getToday = () => window.App.getToday();
+    const addDays = (dateStr, days) => window.App.addDays(dateStr, days);
+    const num = (value) => { const n = Number(value); return Number.isFinite(n) && n >= 0 ? n : 0; };
+
+    /** Make sure a recipe (stored, typed in or written by the AI) has every field the app relies on. */
+    function normalizeRecipe(raw) {
+        if (!raw || typeof raw !== 'object' || !String(raw.name || '').trim()) return null;
+        const nutrients = {};
+        NUTRIENT_KEYS.forEach(key => { nutrients[key] = num(raw.nutrients && raw.nutrients[key]); });
+        const ingredients = (Array.isArray(raw.ingredients) ? raw.ingredients : [])
+            .filter(i => i && String(i.name || '').trim())
+            .map(i => ({ name: String(i.name).trim(), amount: num(i.amount), unit: String(i.unit || '').trim() || 'x' }));
+        return {
+            id: String(raw.id || 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
+            name: String(raw.name).trim().slice(0, 120),
+            emoji: String(raw.emoji || '🍲').slice(0, 8),
+            prepTime: String(raw.prepTime || '15 min').slice(0, 30),
+            description: String(raw.description || ''),
+            instructions: String(raw.instructions || ''),
+            nutrients,
+            ingredients,
+            isCustom: raw.isCustom !== false,
+        };
     }
 
     function loadData() {
-        const storedRecipes = localStorage.getItem(STORAGE_RECIPES);
-        recipes = storedRecipes ? JSON.parse(storedRecipes) : [...PROTOTYPE_RECIPES];
+        let stored = null;
+        try { stored = JSON.parse(localStorage.getItem(STORAGE_RECIPES)); } catch (e) {}
+        recipes = (Array.isArray(stored) ? stored : PROTOTYPE_RECIPES).map(normalizeRecipe).filter(Boolean);
+        if (recipes.length === 0) recipes = PROTOTYPE_RECIPES.map(normalizeRecipe);
 
-        const storedPlan = localStorage.getItem(STORAGE_PLAN);
-        mealPlan = storedPlan ? JSON.parse(storedPlan) : {};
+        try { mealPlan = JSON.parse(localStorage.getItem(STORAGE_PLAN)) || {}; } catch (e) { mealPlan = {}; }
 
-        const storedComp = localStorage.getItem(STORAGE_COMPLETION);
-        if (storedComp) {
-            completion = JSON.parse(storedComp);
-        }
-        if (completion.date !== getToday()) {
-            completion = { date: getToday(), completed: [] };
-            saveCompletion();
-        }
+        completion = { date: getToday(), completed: [] };
+        try {
+            const storedComp = JSON.parse(localStorage.getItem(STORAGE_COMPLETION));
+            if (storedComp && storedComp.date === getToday() && Array.isArray(storedComp.completed)) completion = storedComp;
+        } catch (e) {}
 
         ensureWeeklyPlanExists();
     }
@@ -207,115 +224,118 @@
     function savePlan() { localStorage.setItem(STORAGE_PLAN, JSON.stringify(mealPlan)); }
     function saveCompletion() { localStorage.setItem(STORAGE_COMPLETION, JSON.stringify(completion)); }
 
-    // --- Algorithm: Generate 7 Days ---
+    // --- Planning: keep the next 7 days filled ---
     function ensureWeeklyPlanExists() {
         const today = getToday();
-        
-        // Find how many days ahead we have planned
-        let highestDate = today;
-        for (let i = 0; i < 14; i++) {
-            const d = addDays(today, i);
-            if (mealPlan[d] && mealPlan[d].length === 3) {
-                highestDate = d;
-            } else {
-                break;
+        const known = new Set(recipes.map(r => r.id));
+        let changed = false;
+
+        // Forget days that are over (keeps the saved plan small)
+        Object.keys(mealPlan).forEach(date => {
+            if (date < addDays(today, -1)) { delete mealPlan[date]; changed = true; }
+        });
+
+        for (let i = 0; i <= 7; i++) {
+            const date = addDays(today, i);
+            const current = (mealPlan[date] || []).filter(id => known.has(id));
+            if (current.length !== 3) {
+                mealPlan[date] = generateDayMeals(date, current);
+                changed = true;
             }
         }
-
-        // We want at least 7 days planned from today (today + 6 days)
-        const targetDate = addDays(today, 7);
-        
-        let currentDate = today;
-        let generatedAny = false;
-        
-        while (currentDate <= targetDate) {
-            if (!mealPlan[currentDate] || mealPlan[currentDate].length < 3) {
-                mealPlan[currentDate] = generateDayMeals();
-                generatedAny = true;
-            }
-            currentDate = addDays(currentDate, 1);
-        }
-
-        if (generatedAny) savePlan();
+        if (changed) savePlan();
     }
 
-    function generateDayMeals() {
-        // Greedy selection to fill targets
-        const available = [...recipes].sort(() => Math.random() - 0.5);
-        let selected = [];
-        let currentNutrients = { protein: 0, zinc: 0, omega3: 0, vitaminA: 0, iron: 0, calories: 0 };
+    /**
+     * Pick three meals for a day: cover the nutrient targets, land near the calorie
+     * target and avoid repeating what was eaten on the days right before.
+     * @param {string} date
+     * @param {string[]} keep - meals already fixed for that day
+     */
+    function generateDayMeals(date, keep = []) {
+        const recent = new Set([...(mealPlan[addDays(date, -1)] || []), ...(mealPlan[addDays(date, -2)] || [])]);
+        const selected = [...keep].slice(0, 3);
+        const tracked = ['protein', 'zinc', 'omega3', 'vitaminA', 'iron', 'magnesium'];
+        const weights = { protein: 2, zinc: 2, omega3: 2, vitaminA: 1, iron: 1, magnesium: 1 };
+        const totals = { calories: 0 };
+        tracked.forEach(k => { totals[k] = 0; });
+        selected.forEach(id => {
+            const r = recipes.find(x => x.id === id);
+            if (r) { totals.calories += r.nutrients.calories; tracked.forEach(k => { totals[k] += r.nutrients[k]; }); }
+        });
 
-        for (let i = 0; i < 3; i++) {
-            let bestRecipe = null;
+        while (selected.length < 3 && selected.length < recipes.length) {
+            const mealsLeft = 3 - selected.length;
+            let best = null;
             let bestScore = -Infinity;
-
-            for (const r of available) {
+            for (const r of recipes) {
                 if (selected.includes(r.id)) continue;
-
-                // Score based on what we need most
-                const pScore = (DAILY_TARGETS.protein - currentNutrients.protein) > 0 ? (r.nutrients.protein / DAILY_TARGETS.protein) * 2 : 0;
-                const zScore = (DAILY_TARGETS.zinc - currentNutrients.zinc) > 0 ? (r.nutrients.zinc / DAILY_TARGETS.zinc) * 3 : 0; // high priority
-                const oScore = (DAILY_TARGETS.omega3 - currentNutrients.omega3) > 0 ? (r.nutrients.omega3 / DAILY_TARGETS.omega3) * 3 : 0; // high priority
-                const vScore = (DAILY_TARGETS.vitaminA - currentNutrients.vitaminA) > 0 ? (r.nutrients.vitaminA / DAILY_TARGETS.vitaminA) * 1.5 : 0;
-                
-                const score = pScore + zScore + oScore + vScore + (Math.random() * 0.2); // slight randomization
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestRecipe = r;
-                }
+                let score = Math.random() * 0.3;
+                tracked.forEach(k => {
+                    const target = DAILY_TARGETS[k] || 0;
+                    const missing = Math.max(0, target - totals[k]);
+                    if (target > 0) score += weights[k] * Math.min(r.nutrients[k], missing) / target;
+                });
+                const caloriesPerMeal = Math.max(0, DAILY_TARGETS.calories - totals.calories) / mealsLeft;
+                if (caloriesPerMeal > 0) score -= Math.abs(r.nutrients.calories - caloriesPerMeal) / caloriesPerMeal;
+                if (recent.has(r.id)) score -= 1.5;
+                if (score > bestScore) { bestScore = score; best = r; }
             }
-
-            if (bestRecipe) {
-                selected.push(bestRecipe.id);
-                currentNutrients.protein += bestRecipe.nutrients.protein;
-                currentNutrients.zinc += bestRecipe.nutrients.zinc;
-                currentNutrients.omega3 += bestRecipe.nutrients.omega3;
-                currentNutrients.vitaminA += bestRecipe.nutrients.vitaminA;
-            }
+            if (!best) break;
+            selected.push(best.id);
+            totals.calories += best.nutrients.calories;
+            tracked.forEach(k => { totals[k] += best.nutrients[k]; });
         }
         return selected;
     }
 
+    function nutrientTagsHtml(n) {
+        return `
+            <span class="recipe-tag">${n.calories} kcal</span>
+            <span class="recipe-tag high-protein">Protein ${n.protein} g</span>
+            <span class="recipe-tag zinc">Zinc ${n.zinc} mg</span>
+            <span class="recipe-tag omega3">Omega-3 ${n.omega3} mg</span>
+            <span class="recipe-tag iron">Iron ${n.iron} mg</span>
+            <span class="recipe-tag">Fiber ${n.fiber} g</span>
+            <span class="recipe-tag">B12 ${n.vitaminB12} mcg</span>
+            <span class="recipe-tag">Vit A ${n.vitaminA} mcg</span>
+            <span class="recipe-tag">Vit C ${n.vitaminC} mg</span>
+            <span class="recipe-tag">Vit D ${n.vitaminD} mcg</span>
+            <span class="recipe-tag">Vit E ${n.vitaminE} mg</span>
+            <span class="recipe-tag">Biotin ${n.biotin} mcg</span>
+            <span class="recipe-tag">Magnesium ${n.magnesium} mg</span>
+        `;
+    }
+
+    function recipeDetailsHtml(r) {
+        return `
+            <h4 class="detail-heading">Nutrition</h4>
+            <div class="recipe-tags" style="margin-bottom:12px;">${nutrientTagsHtml(r.nutrients)}</div>
+            <h4 class="detail-heading">${t('ingredients')}</h4>
+            <ul class="detail-list">
+                ${r.ingredients.map(i => `<li>${i.amount} ${esc(i.unit)} ${esc(i.name)}</li>`).join('')}
+            </ul>
+            <h4 class="detail-heading">${t('instructions')}</h4>
+            <p class="detail-text">${esc(r.instructions || 'No instructions provided.')}</p>
+        `;
+    }
+
     // --- UI Rendering ---
 
-    function getRecipeHtml(r, isDone, index) {
+    function getRecipeHtml(r, isDone) {
         return `
-            <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" style="animation-delay:${index*50}ms; cursor:pointer;" onclick="FoodModule.toggleExpand('${r.id}')">
+            <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" onclick="FoodModule.toggleExpand('${r.id}')">
                 <div class="checklist-check" onclick="event.stopPropagation(); FoodModule.toggleCompletion('${r.id}')">✓</div>
                 <div class="checklist-content">
-                    <div class="checklist-text"><span class="progress-emoji" style="margin-right:8px; font-size:1.2rem;">${r.emoji}</span> ${r.name}</div>
-                    <div class="checklist-sub">
-                        ${r.nutrients.calories} kcal • ${r.nutrients.protein}g Protein • ${r.prepTime}
-                    </div>
+                    <div class="checklist-text"><span class="meal-emoji">${esc(r.emoji)}</span>${esc(r.name)}</div>
+                    <div class="checklist-sub">${r.nutrients.calories} kcal · ${r.nutrients.protein} g protein · ${esc(r.prepTime)}</div>
                 </div>
+                <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
-            <div id="expand-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
-                <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
-                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
-                    <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
-                    <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
-                    <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
-                    <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
-                    <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
-                    <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(234, 179, 8, 0.1); color: var(--tag-yellow); border: 1px solid rgba(234, 179, 8, 0.2);">Vit A: ${r.nutrients.vitaminA || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(249, 115, 22, 0.1); color: var(--tag-orange); border: 1px solid rgba(249, 115, 22, 0.2);">Vit C: ${r.nutrients.vitaminC || 0}mg</span>
-                    <span class="recipe-tag" style="background: rgba(250, 204, 21, 0.1); color: var(--tag-gold); border: 1px solid rgba(250, 204, 21, 0.2);">Vit D: ${r.nutrients.vitaminD || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(163, 230, 53, 0.1); color: var(--tag-lime); border: 1px solid rgba(163, 230, 53, 0.2);">Vit E: ${r.nutrients.vitaminE || 0}mg</span>
-                    <span class="recipe-tag" style="background: rgba(236, 72, 153, 0.1); color: var(--tag-pink); border: 1px solid rgba(236, 72, 153, 0.2);">Biotin: ${r.nutrients.biotin || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(168, 85, 247, 0.1); color: var(--tag-purple); border: 1px solid rgba(168, 85, 247, 0.2);">Magnesium: ${r.nutrients.magnesium || 0}mg</span>
-                </div>
-                <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
-                <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
-                    ${r.ingredients.map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
-                </ul>
-                <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
-                <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions}</p>
-                <div style="margin-top: 12px; border-top: 1px solid var(--glass-border); padding-top: 12px; display: flex; justify-content: flex-end;">
-                    <button class="btn btn-sm btn-ghost" onclick="FoodModule.showSwapModal('${r.id}')" style="font-size:0.75rem; color:var(--text-muted); border: 1px solid var(--glass-border);">
-                        🔄 Swap Meal
-                    </button>
+            <div id="expand-${r.id}" class="recipe-expand glass-card-sm" style="display:none;">
+                ${recipeDetailsHtml(r)}
+                <div class="detail-actions">
+                    <button class="btn btn-sm btn-ghost" onclick="FoodModule.showSwapModal('${r.id}')">Swap meal</button>
                 </div>
             </div>
         `;
@@ -339,78 +359,98 @@
         let html = `
             <div class="card-header-row">
                 <div class="section-title" style="margin:0">
-                    <div class="section-title-icon" style="background:rgba(99,102,241,0.15); color:var(--primary-light);">
+                    <div class="section-title-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
                     </div>
                     <h2>${t('todays_meals')}</h2>
                 </div>
-                <button type="button" class="btn btn-sm btn-ghost" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: var(--violet-text); font-size:0.75rem;">
-                    AI Plan
-                </button>
+                <button type="button" class="btn btn-sm btn-ai" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan">Plan my week</button>
             </div>
         `;
 
         if (todayRecipes.length === 0) {
             html += `<div class="empty-state"><div class="empty-state-text">${t('no_meals_planned')}</div></div>`;
         } else {
-            html += `<p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:16px;">Tap a meal to view recipe & ingredients.</p>`;
-            todayRecipes.forEach((r, idx) => {
-                const isDone = completion.completed.includes(r.id);
-                html += getRecipeHtml(r, isDone, idx);
+            todayRecipes.forEach(r => {
+                html += getRecipeHtml(r, completion.completed.includes(r.id));
             });
         }
         
         container.innerHTML = html;
     }
 
+    /** Ingredients for the next 7 days, added up. */
+    function shoppingItems() {
+        const today = getToday();
+        const map = {};
+        for (let i = 1; i <= 7; i++) {
+            (mealPlan[addDays(today, i)] || []).forEach(id => {
+                const r = recipes.find(x => x.id === id);
+                if (!r) return;
+                r.ingredients.forEach(ing => {
+                    const key = `${ing.name.toLowerCase()}|${ing.unit.toLowerCase()}`;
+                    if (!map[key]) map[key] = { key, name: ing.name, unit: ing.unit, amount: 0 };
+                    map[key].amount += ing.amount;
+                });
+            });
+        }
+        return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function loadShoppingChecked() {
+        try {
+            const stored = JSON.parse(localStorage.getItem(STORAGE_SHOPPING));
+            // A ticked list is kept for a week, then starts fresh
+            if (stored && stored.week && stored.week > addDays(getToday(), -7)) return stored;
+        } catch (e) {}
+        return { week: getToday(), keys: [] };
+    }
+
+    function toggleShoppingItem(key) {
+        const state = loadShoppingChecked();
+        const idx = state.keys.indexOf(key);
+        if (idx === -1) state.keys.push(key); else state.keys.splice(idx, 1);
+        localStorage.setItem(STORAGE_SHOPPING, JSON.stringify(state));
+        renderShoppingList();
+    }
+
     function renderShoppingList() {
         const container = document.getElementById('food-shopping');
         if (!container) return;
 
-        // Aggregate ingredients for tomorrow to tomorrow + 6 days (Next 7 days)
-        const today = getToday();
-        const ingredientsMap = {}; // name_unit -> { name, unit, amount }
-
-        for (let i = 1; i <= 7; i++) {
-            const d = addDays(today, i);
-            const mealIds = mealPlan[d] || [];
-            mealIds.forEach(id => {
-                const r = recipes.find(x => x.id === id);
-                if (r && r.ingredients) {
-                    r.ingredients.forEach(ing => {
-                        const key = `${ing.name.toLowerCase()}_${ing.unit}`;
-                        if (!ingredientsMap[key]) {
-                            ingredientsMap[key] = { name: ing.name, unit: ing.unit, amount: 0 };
-                        }
-                        ingredientsMap[key].amount += ing.amount;
-                    });
-                }
-            });
-        }
-
-        const list = Object.values(ingredientsMap).sort((a,b) => a.name.localeCompare(b.name));
+        const list = shoppingItems();
+        const checked = loadShoppingChecked().keys;
+        const open = list.filter(i => !checked.includes(i.key));
+        const done = list.filter(i => checked.includes(i.key));
 
         let html = `
-            <div class="card-header-row" style="margin-top:24px; margin-bottom: 12px;">
+            <div class="card-header-row section-gap">
                 <h2>${t('upcoming_groceries')}</h2>
+                ${list.length ? `<span class="count-pill">${done.length}/${list.length}</span>` : ''}
             </div>
-            <div class="glass-card-sm stagger-item" style="padding: 16px;">
+            <div class="glass-card-sm stagger-item shopping-list">
         `;
-
         if (list.length === 0) {
             html += `<div class="empty-state-text">${t('no_groceries')}</div>`;
         } else {
-            html += `<ul style="margin:0; padding-left:18px; color:var(--text); font-size:0.9rem; line-height:1.6;">`;
-            list.forEach(ing => {
-                // Round amount to 1 decimal place if needed
+            [...open, ...done].forEach((ing, idx) => {
                 const amt = Math.round(ing.amount * 10) / 10;
-                html += `<li><strong>${amt} ${ing.unit}</strong> ${ing.name}</li>`;
+                const isDone = checked.includes(ing.key);
+                html += `
+                    <div class="shopping-item ${isDone ? 'checked' : ''}" data-shop="${idx}">
+                        <div class="checklist-check">✓</div>
+                        <span class="shopping-name">${esc(ing.name)}</span>
+                        <span class="shopping-amount">${amt} ${esc(ing.unit)}</span>
+                    </div>`;
             });
-            html += `</ul>`;
         }
         html += `</div>`;
-
         container.innerHTML = html;
+
+        const ordered = [...open, ...done];
+        container.querySelectorAll('[data-shop]').forEach(el => {
+            el.addEventListener('click', () => toggleShoppingItem(ordered[Number(el.dataset.shop)].key));
+        });
     }
 
     function renderSupplements() {
@@ -421,50 +461,47 @@
         const mealIds = mealPlan[today] || [];
         const todayRecipes = mealIds.map(id => recipes.find(r => r.id === id)).filter(Boolean);
 
-        let sum = { calories:0, protein:0, zinc:0, omega3:0, vitaminA:0, iron:0, vitaminB12:0, vitaminC:0, vitaminD:0, vitaminE:0, biotin:0, magnesium:0, fiber:0 };
+        const sum = {};
+        const eaten = {};
+        NUTRIENT_KEYS.forEach(key => { sum[key] = 0; eaten[key] = 0; });
         todayRecipes.forEach(r => {
-            sum.calories += r.nutrients.calories || 0;
-            sum.protein += r.nutrients.protein || 0;
-            sum.zinc += r.nutrients.zinc || 0;
-            sum.omega3 += r.nutrients.omega3 || 0;
-            sum.vitaminA += r.nutrients.vitaminA || 0;
-            sum.iron += r.nutrients.iron || 0;
-            sum.vitaminB12 += r.nutrients.vitaminB12 || 0;
-            sum.vitaminC += r.nutrients.vitaminC || 0;
-            sum.vitaminD += r.nutrients.vitaminD || 0;
-            sum.vitaminE += r.nutrients.vitaminE || 0;
-            sum.biotin += r.nutrients.biotin || 0;
-            sum.magnesium += r.nutrients.magnesium || 0;
-            sum.fiber += r.nutrients.fiber || 0;
+            const isDone = completion.completed.includes(r.id);
+            NUTRIENT_KEYS.forEach(key => {
+                sum[key] += r.nutrients[key];
+                if (isDone) eaten[key] += r.nutrients[key];
+            });
         });
 
-        // Generate Macro Progress Bars
         const macros = [
             { key: 'calories', label: 'Calories', unit: 'kcal' },
             { key: 'protein', label: 'Protein', unit: 'g' },
             { key: 'zinc', label: 'Zinc', unit: 'mg' },
             { key: 'omega3', label: 'Omega-3', unit: 'mg' },
-            { key: 'vitaminA', label: 'Vit A', unit: 'mcg' },
-            { key: 'magnesium', label: 'Magnesium', unit: 'mg' }
+            { key: 'vitaminA', label: 'Vitamin A', unit: 'mcg' },
+            { key: 'iron', label: 'Iron', unit: 'mg' },
+            { key: 'magnesium', label: 'Magnesium', unit: 'mg' },
+            { key: 'fiber', label: 'Fiber', unit: 'g' }
         ];
+        if (DAILY_TARGETS.biotin > 0) macros.push({ key: 'biotin', label: 'Biotin', unit: 'mcg' });
 
-        let html = `<div class="card-header-row" style="margin-top:24px; margin-bottom:12px;"><h2>Daily Nutrition</h2></div>`;
-        html += `<div class="glass-card stagger-item" style="padding: 16px; margin-bottom: 24px; display:flex; flex-direction:column; gap:12px;">`;
-        
+        let html = `
+            <div class="card-header-row section-gap"><h2>Daily Nutrition</h2></div>
+            <div class="glass-card stagger-item nutrition-card">
+                <div class="nutrition-legend"><span class="legend-dot eaten"></span>eaten<span class="legend-dot planned"></span>planned</div>`;
+
         macros.forEach(m => {
             const target = DAILY_TARGETS[m.key] || 1;
-            const current = sum[m.key] || 0;
-            let pct = Math.min(100, Math.round((current / target) * 100));
-            const color = pct >= 100 ? '#10b981' : 'var(--primary)';
-            
+            const plannedPct = Math.min(100, Math.round((sum[m.key] / target) * 100));
+            const eatenPct = Math.min(100, Math.round((eaten[m.key] / target) * 100));
             html += `
-                <div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:4px; color:var(--text);">
-                        <span><strong>${m.label}</strong></span>
-                        <span style="color:var(--text-muted);">${Math.round(current)} / ${target} ${m.unit} (${pct}%)</span>
+                <div class="nutrition-row">
+                    <div class="nutrition-label">
+                        <strong>${m.label}</strong>
+                        <span>${Math.round(eaten[m.key])} / ${target} ${m.unit}</span>
                     </div>
-                    <div class="progress-bar-bg" style="height:6px;">
-                        <div class="progress-bar-fill" style="width: ${pct}%; background: ${color};"></div>
+                    <div class="progress-track stacked">
+                        <div class="progress-fill planned" style="width:${plannedPct}%;"></div>
+                        <div class="progress-fill ${eatenPct >= 100 ? 'grad-success' : 'grad-primary'}" style="width:${eatenPct}%;"></div>
                     </div>
                 </div>
             `;
@@ -479,12 +516,13 @@
         if (DAILY_TARGETS.biotin > 0 && sum.biotin < DAILY_TARGETS.biotin * 0.7) gaps.push(`Biotin (${DAILY_TARGETS.biotin}mcg)`);
         if (sum.magnesium < DAILY_TARGETS.magnesium * 0.7) gaps.push(`Magnesium (${DAILY_TARGETS.magnesium}mg)`);
 
-        html += `<div class="card-header-row" style="margin-top:24px;"><h2>${t('suggested_supplements')}</h2></div>`;
+        html += `<div class="card-header-row section-gap"><h2>${t('suggested_supplements')}</h2></div>`;
         if (gaps.length === 0) {
             html += `<div class="glass-card-sm stagger-item"><div class="empty-state-text">${t('targets_hit')}</div></div>`;
         } else {
-            html += `<div class="glass-card-sm stagger-item" style="border: 1px solid rgba(245,158,11,0.3);">
-                <ul style="margin:0; padding-left:18px; color:var(--text-muted); font-size:0.9rem; line-height:1.6;">
+            html += `<div class="glass-card-sm stagger-item supplement-box">
+                <p class="form-hint" style="margin:0 0 6px;">Today's planned meals leave a gap here:</p>
+                <ul class="detail-list" style="margin:0;">
                     ${gaps.map(g => `<li>${g}</li>`).join('')}
                 </ul>
             </div>`;
@@ -511,15 +549,15 @@
         if (!container) return;
         
         let html = `
-            <div class="card-header-row" style="margin-top:24px;">
+            <div class="card-header-row section-gap">
                 <h2>${t('recipe_library')}</h2>
                 <div style="display:flex; gap:6px;">
-                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--violet-text); font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">Recommend</button>
-                    <button class="btn btn-primary btn-sm" id="btn-add-recipe" style="font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">${t('add_recipe')}</button>
+                    <button class="btn btn-sm btn-ai" id="btn-recommend-recipe">Suggest</button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-recipe">${t('add_recipe')}</button>
                 </div>
             </div>
-            <div style="margin-top: 12px; margin-bottom: 12px;">
-                <input type="text" id="recipe-search" class="form-input" placeholder="Search by name or ingredient..." value="${recipeSearchQuery}" oninput="FoodModule.setRecipeSearchQuery(this.value)">
+            <div style="margin-bottom: 12px;">
+                <input type="search" id="recipe-search" class="form-input" placeholder="Search by name or ingredient..." value="${esc(recipeSearchQuery)}" oninput="FoodModule.setRecipeSearchQuery(this.value)">
             </div>
             <div class="recipe-grid stagger-item">
         `;
@@ -541,31 +579,17 @@
                 if (r.nutrients.zinc > 3) tagsHtml.push(`<span class="recipe-tag zinc">Zinc</span>`);
 
                 html += `
-                    <div class="recipe-item" style="animation-delay:${idx*30}ms; cursor:pointer;" onclick="FoodModule.toggleExpand('lib-${r.id}')">
-                        <div class="recipe-emoji">${r.emoji}</div>
+                    <div class="recipe-item" onclick="FoodModule.toggleExpand('lib-${r.id}')">
+                        <div class="recipe-emoji">${esc(r.emoji)}</div>
                         <div class="recipe-info">
-                            <div class="recipe-name">${r.name}</div>
+                            <div class="recipe-name">${esc(r.name)}</div>
                             <div class="recipe-tags">${tagsHtml.join('')}</div>
                         </div>
                     </div>
-                    <div id="expand-lib-${r.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
-                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">Nutrition</h4>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 0.75rem;">
-                            <span class="recipe-tag">Calories: ${r.nutrients.calories}</span>
-                            <span class="recipe-tag high-protein">Protein: ${r.nutrients.protein}g</span>
-                            <span class="recipe-tag zinc">Zinc: ${r.nutrients.zinc}mg</span>
-                            <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
-                            <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
-                            <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
-                        </div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
-                        <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
-                            ${(r.ingredients || []).map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
-                        </ul>
-                        <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
-                        <p style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions || 'No instructions provided.'}</p>
-                        <div style="border-top: 1px solid var(--glass-border); padding-top: 12px; display: flex; justify-content: flex-end;">
-                            <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--error);" onclick="event.stopPropagation(); FoodModule.deleteRecipe('${r.id}')">Delete Recipe</button>
+                    <div id="expand-lib-${r.id}" class="recipe-expand glass-card-sm" style="display:none;">
+                        ${recipeDetailsHtml(r)}
+                        <div class="detail-actions">
+                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); FoodModule.deleteRecipe('${r.id}')">Delete recipe</button>
                         </div>
                     </div>
                 `;
@@ -580,10 +604,20 @@
     }
 
     function deleteRecipe(id) {
+        const recipe = recipes.find(r => r.id === id);
+        if (!recipe) return;
+        if (recipes.length <= 3) {
+            window.App.showToast('Keep at least three recipes so a day can be planned.', 'error');
+            return;
+        }
+        if (!confirm(`Delete "${recipe.name}"?`)) return;
         recipes = recipes.filter(r => r.id !== id);
         saveRecipes();
-        renderLibrary();
-        if(window.App && window.App.showToast) window.App.showToast('Recipe deleted', 'success');
+        // Days that used this recipe get a replacement
+        ensureWeeklyPlanExists();
+        renderSection();
+        if (window.App.refreshDashboard) window.App.refreshDashboard();
+        window.App.showToast('Recipe deleted', 'success');
     }
 
     function showAddRecipeModal() {
@@ -628,9 +662,7 @@
             </div>
 
             <div style="margin: 16px 0; text-align: center;">
-                <button type="button" id="btn-calc-macros" class="btn btn-sm" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--violet-text);">
-                    Auto-Calculate Macros with AI
-                </button>
+                <button type="button" id="btn-calc-macros" class="btn btn-sm btn-ai">Estimate nutrition from ingredients</button>
             </div>
             
             <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Nutritional Values</h4>
@@ -643,6 +675,13 @@
                     <label class="form-label">Protein (g)</label>
                     <input type="number" id="recipe-pro" class="form-input" value="20">
                 </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Fiber (g)</label>
+                    <input type="number" id="recipe-fiber" class="form-input" value="8">
+                </div>
+                <div class="form-group"></div>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -710,7 +749,7 @@
             }
             list.innerHTML = window.currentRecipeIngredients.map((i, idx) => `
                 <div style="display:flex; justify-content:space-between; margin-bottom: 4px; padding: 4px 8px; background: var(--surface); border-radius: 4px;">
-                    <span>${i.amount} ${i.unit} ${i.name}</span>
+                    <span>${i.amount} ${esc(i.unit)} ${esc(i.name)}</span>
                     <span style="color:var(--error); cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.currentRecipeIngredients.splice(${idx}, 1); window.renderTempIngredients();">×</span>
                 </div>
             `).join('');
@@ -746,72 +785,43 @@
 
             const btn = document.getElementById('btn-calc-macros');
             const originalText = btn.innerHTML;
-            btn.innerHTML = 'Calculating... ⏳';
+            btn.innerHTML = 'Estimating…';
             btn.disabled = true;
 
             try {
-                const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json', 'X-Requested-With': 'lifeos'
+                const answer = await window.App.ai([
+                    {
+                        role: 'system',
+                        content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients (the whole list together is one serving). 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato') so they group cleanly on a grocery list; keep amounts and units. Return ONLY a valid JSON object with numerical keys: calories, protein, fiber, zinc, omega3, iron, vitaminB12, vitaminA, vitaminC, vitaminD, vitaminE, biotin, magnesium (units: kcal, g, g, mg, mg, mg, mcg, mcg, mg, mcg, mg, mcg, mg) AND an array key 'standardizedIngredients' containing objects exactly like {\"amount\": number, \"unit\": string, \"name\": string}."
                     },
-                    body: JSON.stringify({
-                        model: "deepseek-chat",
-                        messages: [
-                            {
-                                role: "system",
-                                content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients. 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato', 'tomatoe' -> 'Tomato') so they group cleanly on a grocery list. Return ONLY a valid JSON object with numerical keys: calories, protein, zinc, omega3, iron, vitaminB12, vitaminA, vitaminC, vitaminD, vitaminE, biotin, magnesium, AND an array key 'standardizedIngredients' containing objects exactly like {amount: number, unit: string, name: string}. Do not include markdown formatting."
-                            },
-                            {
-                                role: "user",
-                                content: ingredientsText
-                            }
-                        ],
-                        temperature: 0.1
-                    })
+                    { role: 'user', content: ingredientsText }
+                ], { temperature: 0.1, json: true });
+                const result = window.App.parseAIJson(answer);
+
+                const fields = {
+                    calories: 'recipe-cal', protein: 'recipe-pro', fiber: 'recipe-fiber', zinc: 'recipe-zinc', omega3: 'recipe-omega',
+                    iron: 'recipe-iron', vitaminB12: 'recipe-b12', vitaminA: 'recipe-vita', vitaminC: 'recipe-vitc',
+                    vitaminD: 'recipe-vitd', vitaminE: 'recipe-vite', biotin: 'recipe-biotin', magnesium: 'recipe-mag'
+                };
+                Object.entries(fields).forEach(([key, id]) => {
+                    const value = Number(result[key]);
+                    const input = document.getElementById(id);
+                    if (input && Number.isFinite(value) && value >= 0) input.value = Math.round(value * 10) / 10;
                 });
 
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error.message || 'API Error');
+                if (Array.isArray(result.standardizedIngredients)) {
+                    const cleaned = result.standardizedIngredients
+                        .filter(i => i && String(i.name || '').trim())
+                        .map(i => ({ amount: num(i.amount), unit: String(i.unit || 'x'), name: String(i.name).trim() }));
+                    if (cleaned.length) {
+                        window.currentRecipeIngredients = cleaned;
+                        window.renderTempIngredients();
+                    }
                 }
-
-                let content = data.choices[0].message.content.trim();
-                
-                // Strip markdown if it still returned it
-                if (content.startsWith('\`\`\`json')) {
-                    content = content.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
-                } else if (content.startsWith('\`\`\`')) {
-                    content = content.replace(/\`\`\`/g, '').trim();
-                }
-
-                const result = JSON.parse(content);
-
-                if (result.calories !== undefined) document.getElementById('recipe-cal').value = Math.round(result.calories);
-                if (result.protein !== undefined) document.getElementById('recipe-pro').value = Math.round(result.protein);
-                if (result.zinc !== undefined) document.getElementById('recipe-zinc').value = result.zinc;
-                if (result.omega3 !== undefined) document.getElementById('recipe-omega').value = Math.round(result.omega3);
-                if (result.iron !== undefined) document.getElementById('recipe-iron').value = result.iron;
-                if (result.vitaminB12 !== undefined) document.getElementById('recipe-b12').value = result.vitaminB12;
-                if (result.vitaminA !== undefined) document.getElementById('recipe-vita').value = Math.round(result.vitaminA);
-                if (result.vitaminC !== undefined) document.getElementById('recipe-vitc').value = Math.round(result.vitaminC);
-                if (result.vitaminD !== undefined) document.getElementById('recipe-vitd').value = result.vitaminD;
-                if (result.vitaminE !== undefined) document.getElementById('recipe-vite').value = result.vitaminE;
-                if (result.biotin !== undefined) document.getElementById('recipe-biotin').value = Math.round(result.biotin);
-                if (result.magnesium !== undefined) document.getElementById('recipe-mag').value = Math.round(result.magnesium);
-                
-                if (result.standardizedIngredients && Array.isArray(result.standardizedIngredients)) {
-                    window.currentRecipeIngredients = result.standardizedIngredients;
-                    window.renderTempIngredients();
-                }
-
-                window.App.showToast('Macros estimated & ingredients formatted!', 'success');
-
+                window.App.showToast('Nutrition estimated', 'success');
             } catch (err) {
                 console.error('AI Calculation Error:', err);
-                window.App.showToast('Failed to calculate macros. Check API key.', 'error');
+                window.App.showToast('Could not estimate the nutrition. Please try again.', 'error');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
@@ -849,16 +859,16 @@
 
             const ingredients = [...window.currentRecipeIngredients];
 
-            recipes.push({
+            recipes.push(normalizeRecipe({
                 id: 'c_' + Date.now().toString(36),
                 name,
                 emoji,
                 prepTime,
-                nutrients: { calories: cal, protein: pro, fiber: 10, zinc: zinc, omega3: omega3, vitaminA: vita, iron: iron, vitaminB12: b12, vitaminC: vitc, vitaminD: vitd, vitaminE: vite, biotin: biotin, magnesium: mag },
+                nutrients: { calories: cal, protein: pro, fiber: parseInt(document.getElementById('recipe-fiber').value) || 0, zinc: zinc, omega3: omega3, vitaminA: vita, iron: iron, vitaminB12: b12, vitaminC: vitc, vitaminD: vitd, vitaminE: vite, biotin: biotin, magnesium: mag },
                 ingredients: ingredients,
-                instructions: inst || 'Custom recipe.',
+                instructions: inst,
                 isCustom: true
-            });
+            }));
             saveRecipes();
             window.App.hideModal();
             renderSection();
@@ -880,7 +890,44 @@
         
         saveCompletion();
         renderToday();
+        renderSupplements();
         if(window.App && window.App.onCompletionChange) window.App.onCompletionChange();
+    }
+
+    /** Today's meals for the Today screen. */
+    function getTodayItems() {
+        return (mealPlan[getToday()] || [])
+            .map(id => recipes.find(r => r.id === id))
+            .filter(Boolean)
+            .map(r => ({
+                id: r.id,
+                label: `${r.emoji} ${r.name}`,
+                sub: `${r.nutrients.calories} kcal · ${r.nutrients.protein} g protein`,
+                done: completion.completed.includes(r.id),
+            }));
+    }
+
+    /** What the assistant should know about food today. */
+    function getContextForAI() {
+        const meals = getTodayItems().map(m => `${m.label} (${m.sub})${m.done ? ' [eaten]' : ' [not eaten yet]'}`);
+        const planned = {};
+        const eaten = {};
+        NUTRIENT_KEYS.forEach(key => { planned[key] = 0; eaten[key] = 0; });
+        (mealPlan[getToday()] || []).forEach(id => {
+            const r = recipes.find(x => x.id === id);
+            if (!r) return;
+            NUTRIENT_KEYS.forEach(key => {
+                planned[key] += r.nutrients[key];
+                if (completion.completed.includes(id)) eaten[key] += r.nutrients[key];
+            });
+        });
+        return {
+            targets: DAILY_TARGETS,
+            plannedTotals: planned,
+            eatenTotals: eaten,
+            todaysMeals: meals,
+            recipeLibrary: recipes.map(r => `${r.name} (${r.nutrients.calories} kcal, ${r.nutrients.protein} g protein)`),
+        };
     }
 
     function getCompletionData() {
@@ -895,13 +942,13 @@
     function showSwapModal(oldRecipeId) {
         if (!window.App) return;
         
-        let html = `<div style="max-height: 400px; overflow-y: auto; padding-right:8px; display:flex; flex-direction:column; gap:8px;">`;
+        let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
         recipes.forEach(r => {
             if (r.id === oldRecipeId) return;
             html += `
                 <div class="glass-card-sm" style="padding:12px; cursor:pointer;" onclick="FoodModule.swapMeal('${oldRecipeId}', '${r.id}')">
-                    <div style="font-weight:600; font-size:0.9rem;">${r.emoji} ${r.name}</div>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">${r.nutrients.calories} kcal • ${r.nutrients.protein}g Protein</div>
+                    <div style="font-weight:600; font-size:0.9rem;">${esc(r.emoji)} ${esc(r.name)}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">${r.nutrients.calories} kcal · ${r.nutrients.protein} g protein</div>
                 </div>
             `;
         });
@@ -935,7 +982,7 @@
     async function generateAIPlan() {
         const btn = document.getElementById('btn-ai-plan');
         if(btn) {
-            btn.innerHTML = 'Planning... ⏳';
+            btn.innerHTML = 'Planning…';
             btn.disabled = true;
         }
 
@@ -998,55 +1045,43 @@ The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TAR
 Here is the catalog of available recipes (choose from these IDs):
 ${JSON.stringify(catalog)}
 
-Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs. Do not include markdown formatting.`;
+Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs (breakfast, lunch, dinner). Vary the meals across the week.`;
 
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ { role: "system", content: sysPrompt } ],
-                    temperature: 0.1
-                })
-            });
+            const answer = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: 'Create the plan now and answer with the JSON object only.' }
+            ], { temperature: 0.2, json: true });
+            const plan = window.App.parseAIJson(answer);
 
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            let content = data.choices[0].message.content.trim();
-            const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (match) {
-                content = match[1].trim();
-            } else {
-                content = content.replace(/\`\`\`/g, '').trim();
-            }
-
-            const plan = JSON.parse(content);
-
-            // Merge into mealPlan
+            // Only accept days that consist of three different recipes that really exist
+            const known = new Set(recipes.map(r => r.id));
             let updated = false;
             for (const date of targetDates) {
-                if (plan[date] && Array.isArray(plan[date]) && plan[date].length === 3) {
-                    mealPlan[date] = plan[date];
+                const ids = Array.isArray(plan[date]) ? plan[date].filter(id => known.has(id)) : [];
+                if (ids.length === 3) {
+                    mealPlan[date] = ids;
                     updated = true;
                 }
             }
 
             if (updated) {
+                // Meals ticked off today may have been replaced
+                completion.completed = completion.completed.filter(id => (mealPlan[today] || []).includes(id));
+                saveCompletion();
                 savePlan();
                 renderSection();
-                if(window.App && window.App.showToast) window.App.showToast('AI perfectly balanced your meals for the next 7 days!', 'success');
+                if (window.App.refreshDashboard) window.App.refreshDashboard();
+                window.App.showToast('Your next 7 days are planned', 'success');
             } else {
-                throw new Error('Invalid JSON format from AI.');
+                throw new Error('The plan did not match the recipe list.');
             }
 
         } catch (err) {
             console.error('AI Plan Error:', err);
-            if(window.App && window.App.showToast) window.App.showToast('Failed to generate AI plan. Check API key or try again.', 'error');
+            window.App.showToast('Could not plan the week. Please try again.', 'error');
         } finally {
             if(btn) {
-                btn.innerHTML = 'AI Plan';
+                btn.innerHTML = 'Plan my week';
                 btn.disabled = false;
             }
         }
@@ -1059,7 +1094,7 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
     async function recommendNewRecipe() {
         const btn = document.getElementById('btn-recommend-recipe');
         if(btn) {
-            btn.innerHTML = 'Thinking...';
+            btn.innerHTML = 'Thinking…';
             btn.disabled = true;
         }
 
@@ -1110,47 +1145,22 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
 `;
 
         try {
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json', 'X-Requested-With': 'lifeos'
-                },
-                body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: [
-                        { role: 'system', content: sysPrompt },
-                        { role: 'user', content: 'Give me a new recipe.' }
-                    ],
-                    response_format: { type: "json_object" },
-                    temperature: 0.7,
-                    max_tokens: 1500
-                })
-            });
+            const answer = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: 'Give me a new recipe as a JSON object.' }
+            ], { temperature: 0.7, json: true, max_tokens: 1500 });
 
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-            
-            let content = data.choices[0].message.content.trim();
-            const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (match) {
-                content = match[1].trim();
-            } else {
-                content = content.replace(/\`\`\`/g, '').trim();
-            }
+            const parsed = normalizeRecipe({ ...window.App.parseAIJson(answer), id: null, isCustom: true });
+            if (!parsed || parsed.ingredients.length === 0) throw new Error('The suggestion was incomplete.');
 
-            const parsed = JSON.parse(content);
-            parsed.id = 'c_' + Date.now().toString(36);
-            parsed.isCustom = true;
-            
             showReviewModal(parsed);
 
         } catch (err) {
             console.error('Recommend Recipe Error:', err);
-            if(window.App) window.App.showToast(`Failed: ${err.message}`, 'error');
+            window.App.showToast('Could not create a recipe. Please try again.', 'error');
         } finally {
             if(btn) {
-                btn.innerHTML = 'Recommend Recipe';
+                btn.innerHTML = 'Suggest';
                 btn.disabled = false;
             }
         }
@@ -1160,26 +1170,10 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
         if (!window.App) return;
 
         const bodyHTML = `
-            <div style="text-align: center; font-size: 3rem; margin-bottom: 8px;">${recipe.emoji}</div>
-            <h3 style="text-align: center; margin-top: 0;">${recipe.name}</h3>
-            <p style="text-align: center; font-size: 0.85rem; color: var(--text-muted);">${recipe.description}</p>
-            
-            <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:16px; font-size:0.75rem;">
-                <span class="recipe-tag">Calories: ${recipe.nutrients.calories}</span>
-                <span class="recipe-tag">Protein: ${recipe.nutrients.protein}g</span>
-                <span class="recipe-tag">Zinc: ${recipe.nutrients.zinc}mg</span>
-                <span class="recipe-tag">Omega-3: ${recipe.nutrients.omega3}mg</span>
-                <span class="recipe-tag">Prep: ${recipe.prepTime}</span>
-            </div>
-
-            <div style="font-size: 0.85rem; color: var(--text); text-align: left;">
-                <strong>Ingredients:</strong>
-                <ul style="margin: 4px 0 12px 0; padding-left: 18px;">
-                    ${recipe.ingredients.map(i => `<li>${i.amount} ${i.unit} ${i.name}</li>`).join('')}
-                </ul>
-                <strong>Instructions:</strong>
-                <p style="margin: 4px 0 0 0; white-space: pre-wrap;">${recipe.instructions}</p>
-            </div>
+            <div style="text-align: center; font-size: 3rem; margin-bottom: 8px;">${esc(recipe.emoji)}</div>
+            <h3 style="text-align: center; margin-top: 0;">${esc(recipe.name)}</h3>
+            <p style="text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">${esc(recipe.description)} · ${esc(recipe.prepTime)}</p>
+            ${recipeDetailsHtml(recipe)}
         `;
 
         const footerHTML = `
@@ -1198,6 +1192,6 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
         });
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal, setRecipeSearchQuery };
+    window.FoodModule = { init, renderSection, getCompletionData, getTodayItems, getContextForAI, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal, setRecipeSearchQuery };
 
 })();

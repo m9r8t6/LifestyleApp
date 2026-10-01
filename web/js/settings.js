@@ -186,7 +186,7 @@
         const renderDietChips = () => {
             if (!dietChipsContainer) return;
             dietChipsContainer.innerHTML = savedDiet.map((d, i) => `
-                <div style="background:var(--primary-light); color:white; padding:4px 10px; border-radius:12px; font-size:0.75rem; display:flex; align-items:center; gap:6px;">
+                <div style="background:var(--text); color:var(--bg-primary); padding:4px 10px; border-radius:12px; font-size:0.75rem; display:flex; align-items:center; gap:6px;">
                     ${escapeHtml(d)} <span style="cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.removeDiet(${i})">×</span>
                 </div>
             `).join('');

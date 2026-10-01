@@ -38,6 +38,10 @@
     let beepInterval = null;
     
     const t = (k) => window.i18n ? window.i18n.t(k) : k;
+    const esc = (text) => window.App.esc(text);
+    const parseStored = (key, fallback) => {
+        try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch (e) { return fallback; }
+    };
 
     let timerBound = false;
 
@@ -46,29 +50,26 @@
     }
 
     function loadData() {
-        const storedSchedule = localStorage.getItem(STORAGE_SCHEDULE);
-        schedule = storedSchedule ? JSON.parse(storedSchedule) : DEFAULT_SCHEDULE;
+        schedule = parseStored(STORAGE_SCHEDULE, null) || JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
+        // Every weekday must exist, whatever was stored
+        for (let day = 0; day < 7; day++) {
+            if (!schedule[day] || !Array.isArray(schedule[day].exercises)) schedule[day] = { type: 'rest', exercises: [] };
+        }
 
-        const storedCompletion = localStorage.getItem(STORAGE_COMPLETION);
-        if (storedCompletion) completion = JSON.parse(storedCompletion);
-
-        const storedTimer = localStorage.getItem(STORAGE_TIMER);
-        if (storedTimer) {
-            timerDuration = parseInt(storedTimer, 10);
+        const storedTimer = parseInt(localStorage.getItem(STORAGE_TIMER), 10);
+        if (storedTimer >= 30 && !timerRunning) {
+            timerDuration = storedTimer;
             timerRemaining = timerDuration;
         }
 
-        const storedHistory = localStorage.getItem(STORAGE_HISTORY);
-        if (storedHistory) sportHistory = JSON.parse(storedHistory);
+        sportHistory = parseStored(STORAGE_HISTORY, {}) || {};
+        bodyWeightHistory = parseStored(STORAGE_BODY_WEIGHT, []) || [];
 
-        const storedBW = localStorage.getItem(STORAGE_BODY_WEIGHT);
-        if (storedBW) bodyWeightHistory = JSON.parse(storedBW);
-
-        const today = window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10);
-        if (completion.date !== today) {
-            completion = { date: today, completed: [] };
-            saveCompletion();
-        }
+        const today = window.App.getToday();
+        const storedCompletion = parseStored(STORAGE_COMPLETION, null);
+        completion = storedCompletion && storedCompletion.date === today && Array.isArray(storedCompletion.completed)
+            ? storedCompletion
+            : { date: today, completed: [] };
 
         selectedDayIndex = window.App ? window.App.getDayOfWeek() : new Date().getDay();
         
@@ -269,7 +270,7 @@
 
     // --- Rendering ---
     function renderDayTypeBadge(type) {
-        return `<span class="day-type-badge ${type}">${type}</span>`;
+        return `<span class="day-type-badge ${esc(type)}">${esc(type)}</span>`;
     }
 
     function renderDashboard() {
@@ -323,7 +324,7 @@
         if (todayContainer) {
             let tHtml = `
                 <div class="card-header-row">
-                    <div class="section-title" style="margin:0"><div class="section-title-icon" style="background:rgba(6,182,212,0.2); color: var(--accent-light);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg></div><h2>${t('workout')}</h2></div>
+                    <div class="section-title" style="margin:0"><div class="section-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg></div><h2>${t('workout')}</h2></div>
                     ${renderDayTypeBadge(todayPlan.type)}
                 </div>
             `;
@@ -345,18 +346,18 @@
                         }
                     }
                     
-                    const trophySvg = isPR ? `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #fbbf24; margin-left: 6px; vertical-align: middle; display:inline-block;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>` : '';
+                    const trophySvg = isPR ? `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: var(--warning); margin-left: 6px; vertical-align: middle; display:inline-block;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>` : '';
                     
                     tHtml += `
-                        <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" data-ex-id="${ex.id}" data-ex-name="${ex.name}">
+                        <div class="checklist-item stagger-item ${isDone ? 'checked' : ''}" data-ex-id="${esc(ex.id)}" data-ex-name="${esc(ex.name)}">
                             <div class="checklist-check">✓</div>
                             <div class="checklist-content" style="flex: 1;">
-                                <div class="checklist-text" style="display:flex; align-items:center;">${ex.name}${trophySvg}</div>
-                                <div class="checklist-sub">${ex.sets} sets × ${ex.reps} ${ex.weight ? '| '+ex.weight : ''}</div>
+                                <div class="checklist-text" style="display:flex; align-items:center;">${esc(ex.name)}${trophySvg}</div>
+                                <div class="checklist-sub">${esc(ex.sets)} sets × ${esc(ex.reps)}${ex.weight ? ' · ' + esc(ex.weight) : ''}</div>
                             </div>
                             <div class="weight-input-container" style="display:flex; align-items:center; gap:4px;" onclick="event.stopPropagation()">
-                                <input type="number" step="0.1" class="weight-input" placeholder="kg" style="width:50px; padding:6px; border-radius:6px; border:1px solid var(--glass-border); background:var(--surface-sunken); color:var(--text); font-size:0.85rem; outline:none;" value="${lastW}" />
-                                <button class="btn-save-weight" style="background:var(--primary); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:0.8rem; cursor:pointer;">Save</button>
+                                <input type="number" inputmode="decimal" step="0.5" class="weight-input" placeholder="kg" aria-label="Weight in kg" value="${lastW}" />
+                                <button class="btn-save-weight">Log</button>
                             </div>
                         </div>
                     `;
@@ -394,8 +395,13 @@
                                 maxW = Math.max(...sportHistory[exName].map(h => h.weight));
                             }
                             
+                            if (!Number.isFinite(numericW) || numericW <= 0) return;
                             if (!sportHistory[exName]) sportHistory[exName] = [];
-                            sportHistory[exName].push({ date: window.App ? window.App.getToday() : new Date().toISOString().slice(0, 10), weight: numericW });
+                            // One entry per day: logging again corrects today's value
+                            const todayStr = window.App.getToday();
+                            const existing = sportHistory[exName].find(h => h.date === todayStr);
+                            if (existing) existing.weight = numericW;
+                            else sportHistory[exName].push({ date: todayStr, weight: numericW });
                             saveSportHistory();
                             
                             if (numericW > maxW && maxW > 0) {
@@ -407,10 +413,10 @@
                             renderAnalytics();
                             
                             saveBtn.textContent = '✓';
-                            saveBtn.style.background = '#10b981';
+                            saveBtn.classList.add('saved');
                             setTimeout(() => {
-                                saveBtn.textContent = 'Save';
-                                saveBtn.style.background = 'var(--primary)';
+                                saveBtn.textContent = 'Log';
+                                saveBtn.classList.remove('saved');
                             }, 2000);
                         }
                     });
@@ -469,7 +475,7 @@
             const selPlan = schedule[selectedDayIndex];
             let exHtml = `
                 <div class="card-header-row" style="margin-top:20px;">
-                    <h2>${t('exercises')} (${selPlan.type})</h2>
+                    <h2>${t('exercises')} (${esc(selPlan.type)})</h2>
                     ${selPlan.type !== 'rest' ? `<button class="btn btn-primary btn-sm" id="btn-add-ex">${t('add_exercise')}</button>` : ''}
                 </div>
             `;
@@ -481,11 +487,11 @@
                     exHtml += `
                         <div class="exercise-item stagger-item">
                             <div class="exercise-info">
-                                <div class="exercise-name">${ex.name}</div>
-                                <div class="exercise-detail">${ex.sets} × ${ex.reps} ${ex.weight ? '· '+ex.weight : ''}</div>
+                                <div class="exercise-name">${esc(ex.name)}</div>
+                                <div class="exercise-detail">${esc(ex.sets)} × ${esc(ex.reps)}${ex.weight ? ' · ' + esc(ex.weight) : ''}</div>
                             </div>
                             <div class="exercise-actions">
-                                <button class="btn-icon ex-delete" data-id="${ex.id}">×</button>
+                                <button class="btn-icon ex-delete" data-id="${esc(ex.id)}" aria-label="Remove exercise">×</button>
                             </div>
                         </div>
                     `;
@@ -498,6 +504,7 @@
             exContainer.querySelectorAll('.ex-delete').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const id = btn.getAttribute('data-id');
+                    if (!confirm('Remove this exercise from the day?')) return;
                     schedule[selectedDayIndex].exercises = schedule[selectedDayIndex].exercises.filter(x => x.id !== id);
                     saveSchedule();
                     renderSection();
@@ -542,7 +549,16 @@
             bodyWeightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
         }
         saveBodyWeight();
-        if (window.App) window.App.showToast('Body weight saved!', 'success');
+
+        // The nutrition targets follow the latest weight
+        try {
+            const profile = JSON.parse(localStorage.getItem('lifeos_profile')) || { sex: 'male', age: 25, height: 180, goals: { muscle: false, skin: false, hair: false } };
+            profile.weight = weight;
+            localStorage.setItem('lifeos_profile', JSON.stringify(profile));
+            if (window.FoodModule && window.FoodModule.updateDailyTargets) window.FoodModule.updateDailyTargets();
+        } catch (e) {}
+
+        if (window.App) window.App.showToast('Body weight saved', 'success');
         renderSection(); // re-render to update the input and chart
     }
 
@@ -565,14 +581,11 @@
         if (!canvas) return;
 
         // 1. Determine date threshold
-        const today = new Date();
         let daysToSubtract = 30; // default month
         if (chartTimeframe === 'week') daysToSubtract = 7;
         else if (chartTimeframe === 'year') daysToSubtract = 365;
         
-        const thresholdDate = new Date();
-        thresholdDate.setDate(today.getDate() - daysToSubtract);
-        const thresholdStr = thresholdDate.toISOString().slice(0, 10);
+        const thresholdStr = window.App.addDays(window.App.getToday(), -daysToSubtract);
 
         // 2. Gather data
         let rawData = []; // [{date, y}]
@@ -628,13 +641,13 @@
             let color = 'var(--text)';
             
             if (diff > 0) {
-                insightText = `📈 +${diff.toFixed(1)}${labelSuffix}`;
-                color = '#10b981'; // green
+                insightText = `▲ +${diff.toFixed(1)}${labelSuffix}`;
+                color = 'var(--success)';
             } else if (diff < 0) {
-                insightText = `📉 ${diff.toFixed(1)}${labelSuffix}`;
-                color = '#ef4444'; // red
+                insightText = `▼ ${diff.toFixed(1)}${labelSuffix}`;
+                color = 'var(--text-secondary)';
             } else {
-                insightText = `➖ No Change`;
+                insightText = `No change`;
                 color = 'var(--text-muted)';
             }
             if (insightEl) insightEl.innerHTML = `<span style="color:${color};">${insightText}</span>`;
@@ -652,7 +665,8 @@
         const css = getComputedStyle(document.body);
         const gridColor = css.getPropertyValue('--glass-border').trim();
         const tickColor = css.getPropertyValue('--text-secondary').trim();
-        const primaryColor = '#6366f1'; 
+        const primaryColor = css.getPropertyValue('--primary').trim();
+        const fillColor = css.getPropertyValue('--primary-soft').trim();
 
         // @ts-ignore (Assuming Chart is loaded via CDN)
         chartInstance = new Chart(ctx, {
@@ -663,7 +677,7 @@
                     label: chartMetric,
                     data: dataPts,
                     borderColor: primaryColor,
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    backgroundColor: fillColor,
                     borderWidth: 2,
                     pointBackgroundColor: primaryColor,
                     pointRadius: 4,
@@ -705,8 +719,8 @@
         const exercises = Object.keys(sportHistory).filter(name => sportHistory[name].length > 0).sort();
         let optionsHtml = `<option value="Body Weight" ${chartMetric === 'Body Weight' ? 'selected' : ''}>Body Weight</option>`;
         exercises.forEach(ex => {
-            optionsHtml += `<option value="${ex}" ${chartMetric === ex ? 'selected' : ''}>${ex}</option>`;
-            optionsHtml += `<option value="${ex} Ratio" ${chartMetric === `${ex} Ratio` ? 'selected' : ''}>${ex} / BW Ratio</option>`;
+            optionsHtml += `<option value="${esc(ex)}" ${chartMetric === ex ? 'selected' : ''}>${esc(ex)}</option>`;
+            optionsHtml += `<option value="${esc(ex)} Ratio" ${chartMetric === `${ex} Ratio` ? 'selected' : ''}>${esc(ex)} / body weight</option>`;
         });
 
         let html = `
@@ -718,7 +732,7 @@
             <div class="glass-card stagger-item" style="margin-bottom: 16px;">
                 <div style="font-weight:600; margin-bottom:8px;">Log Body Weight</div>
                 <div style="display:flex; gap:8px;">
-                    <input type="number" step="0.1" id="bw-input" class="form-input" style="flex:1;" placeholder="z.B. 75.5 kg" value="${lastBW}">
+                    <input type="number" inputmode="decimal" step="0.1" id="bw-input" class="form-input" style="flex:1;" placeholder="e.g. 75.5" value="${lastBW}">
                     <button class="btn btn-primary" onclick="SportModule.saveBodyWeightEntry(parseFloat(document.getElementById('bw-input').value))">Save</button>
                 </div>
             </div>
@@ -726,7 +740,7 @@
             <!-- Chart Controls -->
             <div class="glass-card stagger-item" style="margin-bottom: 16px;">
                 <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
-                    <select id="chart-metric-select" class="form-input" onchange="SportModule.updateChartSettings()">
+                    <select id="chart-metric-select" class="form-select" onchange="SportModule.updateChartSettings()">
                         ${optionsHtml}
                     </select>
                     <div class="tab-pills">
@@ -819,6 +833,38 @@
         }
     }
 
-    window.SportModule = { init, renderSection, renderDashboard, getCompletionData, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };
+    /** Today's exercises for the Today screen. */
+    function getTodayItems() {
+        const plan = schedule[window.App.getDayOfWeek()];
+        if (!plan || plan.type === 'rest') return [];
+        return plan.exercises.map(ex => ({
+            id: ex.id,
+            label: ex.name,
+            sub: `${ex.sets} × ${ex.reps}${ex.weight ? ' · ' + ex.weight : ''}`,
+            done: completion.completed.includes(ex.id),
+        }));
+    }
+
+    function toggleExercise(id) {
+        const idx = completion.completed.indexOf(id);
+        if (idx > -1) completion.completed.splice(idx, 1);
+        else completion.completed.push(id);
+        saveCompletion();
+        if (window.App && window.App.onCompletionChange) window.App.onCompletionChange();
+    }
+
+    function getContextForAI() {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const week = days.map((name, i) => `${name}: ${schedule[i].type}${schedule[i].exercises.length ? ' — ' + schedule[i].exercises.map(e => `${e.name} ${e.sets}x${e.reps}`).join(', ') : ''}`);
+        const lifts = Object.entries(sportHistory).map(([name, h]) => h.length ? `${name}: ${h[h.length - 1].weight} kg (best ${Math.max(...h.map(x => x.weight))} kg)` : null).filter(Boolean);
+        return {
+            weeklyPlan: week,
+            today: getTodayItems().map(e => `${e.label} (${e.sub})${e.done ? ' [done]' : ''}`),
+            latestLifts: lifts,
+            bodyWeight: bodyWeightHistory.slice(-5).map(b => `${b.date}: ${b.weight} kg`),
+        };
+    }
+
+    window.SportModule = { init, renderSection, renderDashboard, getCompletionData, getTodayItems, toggleExercise, getContextForAI, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };
 
 })();

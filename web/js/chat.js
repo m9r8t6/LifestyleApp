@@ -2,19 +2,20 @@
     'use strict';
 
     const STORAGE_KEY = 'lifeos_chat_history';
+    const MAX_STORED = 80;      // older messages are dropped so the saved history stays small
+    const MAX_CONTEXT = 12;     // messages sent along with each question
     let messages = [];
     let bound = false;
+    let busy = false;
 
-    function escapeHtml(text) {
-        return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
+    const esc = (text) => window.App.esc(text);
+    const read = (key, fallback) => {
+        try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (e) { return fallback; }
+    };
 
     function init() {
-        try {
-            messages = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-        } catch (e) {
-            messages = [];
-        }
+        messages = read(STORAGE_KEY, []);
+        if (!Array.isArray(messages)) messages = [];
         if (bound) return;
         bound = true;
 
@@ -22,151 +23,131 @@
             chip.addEventListener('click', () => {
                 const input = document.getElementById('chat-input');
                 input.value = chip.textContent;
-                input.focus();
+                handleSend();
             });
         });
 
-        const sendBtn = document.getElementById('btn-chat-send');
-        const inputField = document.getElementById('chat-input');
-        
-        if (sendBtn) {
-            sendBtn.addEventListener('click', handleSend);
-        }
-        
-        if (inputField) {
-            inputField.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                }
-            });
-        }
+        document.getElementById('btn-chat-send')?.addEventListener('click', handleSend);
+        document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
     }
 
     function saveMessages() {
+        if (messages.length > MAX_STORED) messages = messages.slice(-MAX_STORED);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     }
 
+    /** Everything the assistant should know: the same data the screens show. */
     function buildSystemPrompt() {
-        // Gather all local data
-        const profile = JSON.parse(localStorage.getItem('lifeos_profile') || '{}');
-        const calendar = JSON.parse(localStorage.getItem('lifeos_calendar_events') || '[]');
-        const workout = JSON.parse(localStorage.getItem('lifeos_workout_schedule') || '{}');
-        const bodycare = JSON.parse(localStorage.getItem('lifeos_bodycare_items') || '[]');
-        const recipes = JSON.parse(localStorage.getItem('lifeos_recipes') || '[]');
-        
+        const profile = read('lifeos_profile', {});
+        const goals = Object.entries(profile.goals || {}).filter(([, on]) => on).map(([name]) => name);
         const lang = window.i18n && window.i18n.getLang() === 'de' ? 'German' : 'English';
+        const today = window.App.getToday();
+        const weekday = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-        let context = `You are LifeOS Assistant, an AI deeply integrated into the user's personal lifestyle app.
-You must communicate in ${lang}.
-Keep your answers highly concise, friendly, and directly related to the user's data when asked.
-Here is the user's current data context from their app:
+        const food = window.FoodModule ? window.FoodModule.getContextForAI() : {};
+        const sport = window.SportModule ? window.SportModule.getContextForAI() : {};
+        const care = window.BodycareModule
+            ? ['morning', 'evening'].map(time => `${time}: ` + (window.BodycareModule.getTodayItems(time).map(i => `${i.label}${i.done ? ' [done]' : ''}`).join(', ') || 'nothing due'))
+            : [];
+        const todos = window.TodoModule ? window.TodoModule.getPending().map(t => t.title) : [];
+        const events = window.CalendarModule ? window.CalendarModule.getUpcoming(8).map(e => `${e.when}: ${e.title}`) : [];
 
---- USER PROFILE ---
-Age: ${profile.age || 'Unknown'}, Weight: ${profile.weight || 'Unknown'}kg, Height: ${profile.height || 'Unknown'}cm
-Diet Restrictions: ${(profile.dietRestrictions || []).join(', ')}
-Goals: ${JSON.stringify(profile.goals || {})}
+        return `You are the assistant inside the user's personal lifestyle app "LifeOS".
+Answer in the language the user writes in (if unclear, use ${lang}). Write plain text without Markdown: no asterisks, no headings; use short lines and simple dashes for lists. Be concise, concrete and friendly. Base every statement about the user on the data below; if something is not in the data, say so instead of guessing. You cannot change the app's data yourself.
+Today is ${weekday}, ${today}.
 
---- WORKOUT SCHEDULE ---
-${JSON.stringify(workout)}
+--- PROFILE ---
+Sex: ${profile.sex || 'unknown'}, age: ${profile.age || 'unknown'}, weight: ${profile.weight || 'unknown'} kg, height: ${profile.height || 'unknown'} cm
+Goals: ${goals.join(', ') || 'none set'}
+Diet restrictions: ${(profile.dietRestrictions || []).join(', ') || 'none'}
 
---- CALENDAR EVENTS ---
-${JSON.stringify(calendar)}
+--- NUTRITION ---
+Daily targets (kcal; protein and fiber in g; zinc, iron, omega3, vitaminC, vitaminE, magnesium in mg; vitaminA, B12, D, biotin in mcg): ${JSON.stringify(food.targets || {})}
+Today's meals: ${(food.todaysMeals || []).join('; ') || 'none planned'}
+Nutrients in today's planned meals (units as in the targets): ${JSON.stringify(food.plannedTotals || {})}
+Nutrients eaten so far today: ${JSON.stringify(food.eatenTotals || {})}
+Recipes in the library: ${(food.recipeLibrary || []).join('; ')}
 
---- BODYCARE ROUTINES ---
-${JSON.stringify(bodycare)}
+--- TRAINING ---
+Weekly plan: ${(sport.weeklyPlan || []).join(' | ')}
+Today's exercises: ${(sport.today || []).join('; ') || 'none (rest day or nothing planned)'}
+Latest lifts: ${(sport.latestLifts || []).join('; ') || 'nothing logged yet'}
+Body weight log: ${(sport.bodyWeight || []).join('; ') || 'nothing logged yet'}
+
+--- BODY CARE DUE TODAY ---
+${care.join('\n')}
+
+--- OPEN TO-DOS ---
+${todos.join('; ') || 'none'}
+
+--- UPCOMING EVENTS ---
+${events.join('; ') || 'none'}
 `;
+    }
 
-        return context;
+    function bubble(msg) {
+        const isUser = msg.role === 'user';
+        return `<div class="chat-row ${isUser ? 'user' : 'assistant'}"><div class="chat-bubble ${isUser ? 'user' : 'assistant'}">${esc(msg.content)}</div></div>`;
     }
 
     function renderSection() {
         const container = document.getElementById('chat-messages');
         if (!container) return;
 
-        let html = '';
-        
         if (messages.length === 0) {
-            html += `<div style="text-align:center; color:var(--text-muted); margin-top:40px; font-size:0.9rem;">No messages yet. Ask me about your data!</div>`;
+            container.innerHTML = `<div class="empty-state"><div class="empty-state-text">Ask about your meals, training or what is due today.</div></div>`;
         } else {
-            messages.forEach(msg => {
-                const isUser = msg.role === 'user';
-                html += `
-                    <div style="display:flex; justify-content:${isUser ? 'flex-end' : 'flex-start'}; margin-bottom:12px;">
-                        <div class="chat-bubble ${isUser ? 'user' : 'assistant'}">${escapeHtml(msg.content)}</div>
-                    </div>
-                `;
+            container.innerHTML = messages.map(bubble).join('')
+                + `<button type="button" class="chat-clear" id="btn-chat-clear">Clear conversation</button>`;
+            document.getElementById('btn-chat-clear')?.addEventListener('click', () => {
+                if (!confirm('Delete this conversation?')) return;
+                messages = [];
+                saveMessages();
+                renderSection();
             });
         }
-        
-        container.innerHTML = html;
-        container.scrollTop = container.scrollHeight;
+        window.scrollTo(0, document.body.scrollHeight);
     }
 
     async function handleSend() {
         const inputField = document.getElementById('chat-input');
         const text = inputField.value.trim();
-        if (!text) return;
+        if (!text || busy) return;
+        busy = true;
 
-        // Add user message
         messages.push({ role: 'user', content: text });
         saveMessages();
         inputField.value = '';
         renderSection();
 
-        // Add temporary loading message
         const container = document.getElementById('chat-messages');
-        const loadingId = 'loading-' + Date.now();
-        container.insertAdjacentHTML('beforeend', `
-            <div id="${loadingId}" style="display:flex; justify-content:flex-start; margin-bottom:12px;">
-                <div class="chat-bubble assistant thinking">Thinking…</div>
-            </div>
-        `);
-        container.scrollTop = container.scrollHeight;
+        container.insertAdjacentHTML('beforeend', `<div class="chat-row assistant" id="chat-thinking"><div class="chat-bubble assistant thinking">Thinking…</div></div>`);
+        window.scrollTo(0, document.body.scrollHeight);
 
         try {
-            // Prepare API payload
-            let sysPrompt = buildSystemPrompt();
-            
-            // Limit history to last 10 messages to save context
-            const historyToInclude = messages.slice(-10);
-            
-            const apiMessages = [
-                { role: 'system', content: sysPrompt },
-                ...historyToInclude
-            ];
-
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: apiMessages,
-                    temperature: 0.5
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            const aiText = data.choices[0].message.content.trim();
-            messages.push({ role: 'assistant', content: aiText });
+            const history = messages.slice(-MAX_CONTEXT).map(m => ({ role: m.role, content: m.content }));
+            const answer = await window.App.ai([{ role: 'system', content: buildSystemPrompt() }, ...history], { temperature: 0.5 });
+            messages.push({ role: 'assistant', content: answer });
             saveMessages();
-            
         } catch (err) {
             console.error('Chat AI Error:', err);
-            window.App.showToast('Failed to connect to AI', 'error');
-            messages.push({ role: 'assistant', content: 'Sorry, I could not reach the assistant. Please try again in a moment.' });
+            // The failed question is kept so it can simply be sent again
+            window.App.showToast(err.message || 'The assistant could not answer.', 'error');
+            messages.pop();
             saveMessages();
+            inputField.value = text;
         } finally {
+            busy = false;
             renderSection();
         }
     }
 
-    function renderDashboard() {
-        // Not needed for chat currently
-    }
+    function renderDashboard() {}
 
     window.ChatModule = { init, renderSection, renderDashboard };
 

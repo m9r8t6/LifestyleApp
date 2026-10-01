@@ -7,10 +7,10 @@
   const MS_PER_DAY      = 86400000;
 
   const CATEGORY_COLORS = {
-    teeth:    '#06b6d4',
-    skincare: '#8b5cf6',
-    hair:     '#f59e0b',
-    eyebrows: '#ec4899',
+    teeth:    'var(--cat-teeth)',
+    skincare: 'var(--cat-skin)',
+    hair:     'var(--cat-hair)',
+    eyebrows: 'var(--cat-brows)',
   };
 
   const CATEGORY_LABELS = {
@@ -49,15 +49,22 @@
   let activeTime = new Date().getHours() < 16 ? 'morning' : 'evening';
 
   // ─── Helpers ──────────────────────────────────────────────
-  const today = () => (typeof App !== 'undefined' && App.getToday) ? App.getToday() : new Date().toISOString().slice(0, 10);
+  const today = () => App.getToday();
   const uid = () => 'bc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const t = (key, params) => window.i18n ? window.i18n.t(key, params) : key;
+  const esc = (text) => App.esc(text);
+  const daysBetween = (from, to) => Math.round((Date.parse(to) - Date.parse(from)) / MS_PER_DAY);
 
   function loadItems() {
     const raw = localStorage.getItem(STORAGE_ITEMS);
-    if (raw) { try { return JSON.parse(raw); } catch {} }
+    if (raw) {
+      try {
+        const items = JSON.parse(raw);
+        if (Array.isArray(items)) return items;
+      } catch {}
+    }
     localStorage.setItem(STORAGE_ITEMS, JSON.stringify(DEFAULT_ITEMS));
-    return [...DEFAULT_ITEMS];
+    return DEFAULT_ITEMS.map(i => ({ ...i }));
   }
 
   function saveItems(items) { localStorage.setItem(STORAGE_ITEMS, JSON.stringify(items)); }
@@ -75,15 +82,29 @@
 
   function saveCompletion(comp) { localStorage.setItem(STORAGE_DONE, JSON.stringify(comp)); }
 
+  /**
+   * Items that repeat every N days carry a `nextDue` date. It only moves on when the
+   * item is ticked off, so a missed treatment stays on the list instead of silently
+   * skipping to the next cycle.
+   */
+  function nextDueOf(item) {
+    if (item.nextDue) return item.nextDue;
+    // First time: derive it from the original start date
+    const since = daysBetween(item.startDate || today(), today());
+    if (since <= 0) return item.startDate || today();
+    const remainder = since % item.frequency;
+    return App.addDays(today(), remainder === 0 ? 0 : item.frequency - remainder);
+  }
+
   function getDaysUntilDue(item) {
     if (item.frequency <= 1) return 0;
-    const daysSinceStart = Math.floor((Date.parse(today()) - Date.parse(item.startDate)) / MS_PER_DAY);
-    if (daysSinceStart >= 0) {
-        const remainder = daysSinceStart % item.frequency;
-        return remainder === 0 ? 0 : item.frequency - remainder;
-    } else {
-        return Math.abs(daysSinceStart) % item.frequency;
-    }
+    // Ticked off today: keep showing it under today
+    if (item.doneOn === today()) return 0;
+    return Math.max(0, daysBetween(today(), nextDueOf(item)));
+  }
+
+  function isOverdue(item) {
+    return item.frequency > 1 && item.doneOn !== today() && daysBetween(today(), nextDueOf(item)) < 0;
   }
 
   function getDueStatusStr(days) {
@@ -107,20 +128,36 @@
   function toggleItem(itemId) {
     const comp = loadCompletion();
     const idx = comp.completed.indexOf(itemId);
-    if (idx === -1) comp.completed.push(itemId);
+    const nowDone = idx === -1;
+    if (nowDone) comp.completed.push(itemId);
     else comp.completed.splice(idx, 1);
     saveCompletion(comp);
+
+    // Repeating items: move the next due date on (or back, when un-ticked)
+    const items = loadItems();
+    const item = items.find(i => i.id === itemId);
+    if (item && item.frequency > 1) {
+      if (nowDone) {
+        item.prevNextDue = nextDueOf(item);
+        item.doneOn = today();
+        item.nextDue = App.addDays(today(), item.frequency);
+      } else if (item.doneOn === today()) {
+        item.nextDue = item.prevNextDue || today();
+        delete item.doneOn;
+        delete item.prevNextDue;
+      }
+      saveItems(items);
+    }
+    if (window.App && window.App.onCompletionChange) window.App.onCompletionChange();
   }
 
   function shiftItem(itemId, days) {
       const items = loadItems();
-      const idx = items.findIndex(i => i.id === itemId);
-      if (idx > -1) {
-          const d = new Date(items[idx].startDate);
-          d.setDate(d.getDate() + days);
-          items[idx].startDate = d.toISOString().slice(0, 10);
-          saveItems(items);
-      }
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+      const shifted = App.addDays(nextDueOf(item), days);
+      item.nextDue = shifted < today() ? today() : shifted;
+      saveItems(items);
   }
 
   function toggleExpand(itemId) {
@@ -141,7 +178,7 @@
 
     const toggleHTML = `
       <div class="section-title stagger-item">
-        <div class="section-title-icon" style="background:rgba(139,92,246,0.15); color:var(--text);">
+        <div class="section-title-icon">
             ${ICONS.care}
         </div>
         <h2>${t('body_care')}</h2>
@@ -166,15 +203,15 @@
 
     function renderGroup(titleKey, items, isUpcomingGroup) {
         if (items.length === 0) return '';
-        let html = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1rem; color: var(--text);">${t(titleKey)}</h3>`;
+        let html = `<h3 class="group-heading">${t(titleKey)}</h3>`;
         
         const grouped = groupByCategory(items);
         let staggerIdx = 0;
         
         for (const [cat, catItems] of grouped) {
-            const color = CATEGORY_COLORS[cat] || '#6366f1';
+            const color = CATEGORY_COLORS[cat] || 'var(--primary)';
             html += `
-              <div class="category-header stagger-item" style="animation-delay:${staggerIdx * 50}ms">
+              <div class="category-header stagger-item">
                 <span class="category-dot" style="background:${color}"></span>
                 <h4>${CATEGORY_LABELS[cat] || cat}</h4>
               </div>
@@ -185,39 +222,36 @@
               const done = comp.completed.includes(item.id);
               const opacity = isUpcomingGroup ? '0.7' : '1';
               
-              const shiftButtons = item.frequency > 1 ? `
-                  <div class="shift-btns" style="display:flex; gap:4px; margin-left: auto;">
-                      <button class="btn-icon bc-shift-btn" data-id="${item.id}" data-shift="-1" title="Do Sooner (-1 day)" style="font-size:0.7rem; width:24px; height:24px; background:var(--bg-tertiary); border-radius:4px;">-1d</button>
-                      <button class="btn-icon bc-shift-btn" data-id="${item.id}" data-shift="1" title="Push Later (+1 day)" style="font-size:0.7rem; width:24px; height:24px; background:var(--bg-tertiary); border-radius:4px;">+1d</button>
+              const shiftButtons = item.frequency > 1 && !done ? `
+                  <div class="shift-btns">
+                      <button class="bc-shift-btn" data-id="${item.id}" data-shift="-1" title="One day sooner">−1d</button>
+                      <button class="bc-shift-btn" data-id="${item.id}" data-shift="1" title="One day later">+1d</button>
                   </div>
               ` : '';
 
               const hasDesc = !!item.description;
-              const cursor = hasDesc ? 'cursor:pointer;' : '';
+              let sub = t('daily');
+              if (isUpcomingGroup) sub = getDueStatusStr(item.daysUntilDue);
+              else if (isOverdue(item)) sub = 'Overdue';
+              else if (item.frequency > 1) sub = `Every ${item.frequency} days`;
 
               html += `
-                <div class="checklist-item ${done ? 'checked' : ''} stagger-item"
-                     data-id="${item.id}"
-                     data-expandable="${hasDesc}"
-                     style="animation-delay:${staggerIdx * 50}ms; opacity:${opacity}; padding-right:8px; ${cursor}">
-                  <div class="checklist-check bc-check-btn" data-id="${item.id}" style="border-color:${done ? 'var(--success)' : color}">
-                    ${done ? '✓' : ''}
-                  </div>
+                <div class="checklist-item ${done ? 'checked' : ''} ${isUpcomingGroup ? 'upcoming' : ''} stagger-item" data-id="${item.id}">
+                  <div class="checklist-check" style="border-color:${done ? 'var(--success)' : color}">✓</div>
                   <div class="checklist-content">
-                    <div class="checklist-text">${item.name}</div>
-                    <div class="checklist-sub" style="color: ${isUpcomingGroup ? 'var(--text-muted)' : 'var(--accent-light)'}">
-                        ${isUpcomingGroup ? getDueStatusStr(item.daysUntilDue) : (item.frequency > 1 ? t('due_today') : t('daily'))}
-                    </div>
+                    <div class="checklist-text">${esc(item.name)}</div>
+                    <div class="checklist-sub ${isOverdue(item) ? 'overdue' : ''}">${sub}</div>
                   </div>
                   ${shiftButtons}
-                  <button class="btn-icon bc-edit-btn" data-id="${item.id}" title="Edit" style="margin-left: 4px; color:var(--text-muted);">${ICONS.pencil}</button>
+                  ${hasDesc ? `<button class="btn-icon bc-info-btn" data-id="${item.id}" title="How to" aria-label="How to">i</button>` : ''}
+                  <button class="btn-icon bc-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit">${ICONS.pencil}</button>
                 </div>
               `;
 
               if (hasDesc) {
                   html += `
-                    <div id="bc-expand-${item.id}" class="recipe-expand glass-card-sm" style="display:none; margin-bottom: 12px; margin-top: -8px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
-                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${item.description}</p>
+                    <div id="bc-expand-${item.id}" class="recipe-expand glass-card-sm" style="display:none;">
+                        <p class="detail-text">${esc(item.description)}</p>
                     </div>
                   `;
               }
@@ -229,9 +263,9 @@
 
     if (dueToday.length === 0) {
       listHTML += `
-        <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1rem; color: var(--text);">${t('due_today')}</h3>
+        <h3 class="group-heading">${t('due_today')}</h3>
         <div class="empty-state stagger-item">
-          <div class="empty-state-text">No ${activeTime} items due today!</div>
+          <div class="empty-state-text">Nothing due this ${activeTime}.</div>
         </div>
       `;
     } else {
@@ -247,7 +281,6 @@
     const summaryHTML = totalCount > 0 ? `
       <div class="glass-card-sm stagger-item" style="margin-bottom:14px;">
         <div class="progress-row">
-          <span class="progress-emoji" style="color:var(--text);">${activeTime === 'morning' ? ICONS.sun : ICONS.moon}</span>
           <div class="progress-info">
             <div class="progress-label">
               <span>${activeTime === 'morning' ? t('morning') : t('evening')} Routine</span>
@@ -297,31 +330,25 @@
     const shiftBtn = target.closest('.bc-shift-btn');
     if (shiftBtn) {
       e.stopPropagation();
-      const shift = parseInt(shiftBtn.dataset.shift, 10);
-      shiftItem(shiftBtn.dataset.id, shift);
+      shiftItem(shiftBtn.dataset.id, parseInt(shiftBtn.dataset.shift, 10));
       renderSection();
-      if(window.App && window.App.refreshDashboard) window.App.refreshDashboard();
-      if(window.App && window.App.onCompletionChange) window.App.onCompletionChange();
+      if (window.App && window.App.onCompletionChange) window.App.onCompletionChange();
       return;
     }
 
-    const checkBtn = target.closest('.bc-check-btn');
-    if (checkBtn) {
-        e.stopPropagation();
-        toggleItem(checkBtn.dataset.id);
-        renderSection();
-        return;
+    const infoBtn = target.closest('.bc-info-btn');
+    if (infoBtn) {
+      e.stopPropagation();
+      toggleExpand(infoBtn.dataset.id);
+      return;
     }
 
+    // Tapping anywhere on a row ticks it off
     const checkItem = target.closest('.checklist-item[data-id]');
     if (checkItem) {
-        if (checkItem.dataset.expandable === 'true') {
-            toggleExpand(checkItem.dataset.id);
-        } else {
-            toggleItem(checkItem.dataset.id);
-            renderSection();
-        }
-        return;
+      toggleItem(checkItem.dataset.id);
+      renderSection();
+      return;
     }
 
     if (target.closest('#bc-add-item')) {
@@ -339,7 +366,7 @@
     const bodyHTML = `
       <div class="form-group">
         <label class="form-label">Name</label>
-        <input class="form-input" id="bc-form-name" value="${item.name}">
+        <input class="form-input" id="bc-form-name" value="${esc(item.name)}">
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -362,7 +389,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Description / Instructions</label>
-        <textarea class="form-input" id="bc-form-desc" style="resize:vertical; min-height:80px;">${item.description || ''}</textarea>
+        <textarea class="form-input" id="bc-form-desc" style="resize:vertical; min-height:80px;">${esc(item.description || '')}</textarea>
       </div>
     `;
 
@@ -395,19 +422,26 @@
       const items = loadItems();
       if (isEdit) {
         const idx = items.findIndex(i => i.id === item.id);
-        if (idx !== -1) items[idx] = { ...items[idx], name, category: cat, timeOfDay: selectedTime, frequency: freq, description: desc };
+        if (idx !== -1) {
+          // A changed rhythm starts counting from today
+          const restart = items[idx].frequency !== freq ? { nextDue: today(), doneOn: undefined, prevNextDue: undefined } : {};
+          items[idx] = { ...items[idx], name, category: cat, timeOfDay: selectedTime, frequency: freq, description: desc, ...restart };
+        }
       } else {
         items.push({ id: item.id, name, category: cat, timeOfDay: selectedTime, frequency: freq, startDate: today(), description: desc });
       }
       saveItems(items);
       window.App.hideModal();
       renderSection();
+      window.App.refreshDashboard();
     });
 
     document.getElementById('bc-form-delete')?.addEventListener('click', () => {
+      if (!confirm(`Delete "${item.name}"?`)) return;
       saveItems(loadItems().filter(i => i.id !== item.id));
       window.App.hideModal();
       renderSection();
+      window.App.refreshDashboard();
     });
   }
 
@@ -431,5 +465,18 @@
     loadItems();
   }
 
-  window.BodycareModule = { init, renderSection, getCompletionData, getCategoryCompletion };
+  /** Due items for the Today screen. */
+  function getTodayItems(timeOfDay) {
+    const comp = loadCompletion();
+    return loadItems()
+      .filter(i => i.timeOfDay === timeOfDay && getDaysUntilDue(i) === 0)
+      .map(i => ({
+        id: i.id,
+        label: i.name,
+        sub: isOverdue(i) ? 'Overdue' : (i.frequency > 1 ? `Every ${i.frequency} days` : ''),
+        done: comp.completed.includes(i.id),
+      }));
+  }
+
+  window.BodycareModule = { init, renderSection, getCompletionData, getCategoryCompletion, getTodayItems, toggleItem };
 })();

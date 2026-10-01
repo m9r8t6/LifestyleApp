@@ -7,10 +7,12 @@
     let selectedDate = new Date();
 
     const t = (key) => window.i18n ? window.i18n.t(key) : key;
+    const esc = (text) => window.App.esc(text);
 
     function loadEvents() {
         try {
             events = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            if (!Array.isArray(events)) events = [];
         } catch (e) {
             events = [];
         }
@@ -37,11 +39,6 @@
     function init() {
         loadEvents();
         
-        // Request notification permission if not asked yet (and supported)
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
         // Setup notification loop every 60 seconds
         if (notificationInterval) clearInterval(notificationInterval);
         notificationInterval = setInterval(checkNotifications, 60000);
@@ -79,7 +76,7 @@
                 // Trigger notification
                 new Notification(ev.title, {
                     body: `Upcoming event on ${ev.date} at ${ev.time}`,
-                    icon: 'icon.svg'
+                    icon: 'icon-192.png'
                 });
                 // Vibrate if supported
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -121,12 +118,12 @@
         let html = `
             <div class="card-header-row" style="margin-bottom: 16px;">
                 <div style="display:flex; align-items:center; gap: 12px;">
-                    <button class="btn btn-ghost" onclick="CalendarModule.prevMonth()" style="padding:4px 8px;">&larr;</button>
-                    <h2 style="margin:0; min-width:130px; text-align:center;">${monthNames[month]} ${year}</h2>
-                    <button class="btn btn-ghost" onclick="CalendarModule.nextMonth()" style="padding:4px 8px;">&rarr;</button>
+                    <button class="btn-icon" onclick="CalendarModule.prevMonth()" aria-label="Previous month">&larr;</button>
+                    <h2 style="margin:0; min-width:120px; text-align:center;">${monthNames[month]} ${year}</h2>
+                    <button class="btn-icon" onclick="CalendarModule.nextMonth()" aria-label="Next month">&rarr;</button>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    ${window.RAGModule && window.RAGModule.isReady ? `<button class="btn btn-secondary btn-sm" onclick="CalendarModule.syncWithGoogle()" title="Sync with Google Calendar" style="padding:4px 8px;">🔄</button>` : ''}
+                    ${window.RAGModule && window.RAGModule.isReady ? `<button class="btn btn-secondary btn-sm" onclick="CalendarModule.syncWithGoogle()" title="Sync with Google Calendar">Sync</button>` : ''}
                     <button class="btn btn-primary btn-sm" onclick="CalendarModule.showAddEventModal()">${t('add_event')}</button>
                 </div>
             </div>
@@ -144,24 +141,17 @@
         }
 
         // Days
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = window.App.getToday();
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
             const hasEvent = monthEvents.some(e => e.date === dateStr);
             const isToday = dateStr === todayStr;
             
-            let bg = 'transparent';
-            let color = 'var(--text)';
-            if (isToday) {
-                bg = 'var(--primary-light)';
-                color = 'white';
-            }
-            
             html += `
-                <div style="position:relative; height:32px; display:flex; align-items:center; justify-content:center; border-radius:16px; background:${bg}; color:${color}; font-size:0.85rem;">
+                <button type="button" class="cal-day ${isToday ? 'today' : ''}" onclick="CalendarModule.showAddEventModal('${dateStr}')" aria-label="${dateStr}">
                     ${i}
-                    ${hasEvent ? `<div style="position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%; background:var(--accent);"></div>` : ''}
-                </div>
+                    ${hasEvent ? `<span class="cal-dot"></span>` : ''}
+                </button>
             `;
         }
 
@@ -181,13 +171,13 @@
         } else {
             upcomingEvents.forEach((ev, idx) => {
                 html += `
-                    <div class="glass-card-sm stagger-item" style="padding:16px; animation-delay:${idx*50}ms;" onclick="CalendarModule.showEventDetails('${ev.id}')">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <strong style="font-size:1rem; color:var(--primary-light);">${ev.title}</strong>
-                            <span style="font-size:0.8rem; color:var(--text-muted);">${ev.date} at ${ev.time}</span>
+                    <div class="glass-card-sm stagger-item event-card" onclick="CalendarModule.showEventDetails('${esc(ev.id)}')">
+                        <div class="event-head">
+                            <strong>${esc(ev.title)}</strong>
+                            <span>${esc(formatWhen(ev))}</span>
                         </div>
-                        ${ev.prepNotes ? `<div style="font-size:0.8rem; color:var(--accent); margin-bottom:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Prep notes generated</div>` : ''}
-                        ${ev.notes ? `<div style="font-size:0.8rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${ev.notes}</div>` : ''}
+                        ${ev.prepNotes ? `<div class="event-flag">Prep notes ready</div>` : ''}
+                        ${ev.notes ? `<div class="event-notes">${esc(ev.notes)}</div>` : ''}
                     </div>
                 `;
             });
@@ -197,9 +187,22 @@
         container.innerHTML = html;
     }
 
-    function renderDashboard() {
-        // Optional: show next event on dashboard
+    function formatWhen(ev) {
+        const lang = window.i18n && window.i18n.getLang() === 'de' ? 'de-DE' : 'en-GB';
+        const d = new Date(`${ev.date}T${ev.time || '00:00'}`);
+        if (isNaN(d)) return `${ev.date} ${ev.time || ''}`;
+        const day = d.toLocaleDateString(lang, { weekday: 'short', day: 'numeric', month: 'short' });
+        return ev.time && ev.time !== '00:00' ? `${day}, ${ev.time}` : day;
     }
+
+    /** Next events for the Today screen. */
+    function getUpcoming(limit = 3) {
+        const today = window.App.getToday();
+        return getSortedEvents().filter(e => e.date >= today).slice(0, limit)
+            .map(e => ({ id: e.id, title: e.title, when: formatWhen(e), isToday: e.date === today }));
+    }
+
+    function renderDashboard() {}
 
     function prevMonth() {
         selectedDate.setMonth(selectedDate.getMonth() - 1);
@@ -211,8 +214,9 @@
         renderSection();
     }
 
-    function showAddEventModal() {
+    function showAddEventModal(presetDate) {
         if (!window.App) return;
+        const dateValue = /^\d{4}-\d{2}-\d{2}$/.test(presetDate || '') ? presetDate : window.App.getToday();
 
         const html = `
             <div class="form-group">
@@ -222,7 +226,7 @@
             <div class="form-row">
                 <div class="form-group" style="flex:1;">
                     <label class="form-label">Date</label>
-                    <input type="date" id="event-date" class="form-input" value="${new Date().toISOString().slice(0, 10)}">
+                    <input type="date" id="event-date" class="form-input" value="${dateValue}">
                 </div>
                 <div class="form-group" style="flex:1;">
                     <label class="form-label">Time</label>
@@ -231,7 +235,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Reminder</label>
-                <select id="event-reminder" class="form-input">
+                <select id="event-reminder" class="form-select">
                     <option value="none">None</option>
                     <option value="1h">1 Hour Before</option>
                     <option value="1d">1 Day Before</option>
@@ -261,7 +265,7 @@
             const data = await response.json();
 
             let addedCount = 0;
-            data.items.forEach(gEvent => {
+            (data.items || []).forEach(gEvent => {
                 const dateStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(0, 10) : (gEvent.start.date ? gEvent.start.date : null);
                 const timeStr = gEvent.start.dateTime ? gEvent.start.dateTime.slice(11, 16) : '00:00';
                 
@@ -314,7 +318,7 @@
                 reminders: remindersObj
             };
 
-            await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+            const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
                 method: 'POST',
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -323,9 +327,11 @@
                 body: JSON.stringify(gEvent)
             });
             
-            window.App.showToast('Event pushed to Google Calendar!', 'success');
+            if (!res.ok) throw new Error(`Google Calendar answered ${res.status}`);
+            window.App.showToast('Also added to Google Calendar', 'success');
         } catch (e) {
             console.error('Failed to push to Google', e);
+            window.App.showToast('Saved here, but Google Calendar could not be updated.', 'error');
         }
     }
 
@@ -354,6 +360,7 @@
         saveEvents();
         window.App.hideModal();
         renderSection();
+        window.App.refreshDashboard();
         
         pushToGoogleCalendar(newEv);
         
@@ -369,29 +376,30 @@
         if (!ev) return;
 
         const html = `
-            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">${ev.date} at ${ev.time} • Reminder: ${ev.reminder}</div>
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">${esc(formatWhen(ev))}${ev.reminder && ev.reminder !== 'none' ? ` · reminder ${ev.reminder === '1h' ? '1 hour' : '1 day'} before` : ''}</div>
             
             <div class="form-group">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <label class="form-label" style="margin:0;">${t('prep_notes')}</label>
-                    <button class="btn btn-sm btn-ghost" onclick="CalendarModule.prepareWithAI('${ev.id}')" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: var(--violet-text); font-size:0.7rem; padding:4px 8px;" id="btn-prep-ai-${ev.id}">
+                    <button class="btn btn-sm btn-ai" onclick="CalendarModule.prepareWithAI('${ev.id}')" id="btn-prep-ai-${ev.id}">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> ${t('prepare_with_ai')}
                     </button>
                 </div>
-                <textarea id="event-prep-${ev.id}" class="form-input" style="min-height:80px; resize:vertical;" placeholder="AI will generate preparation notes here, or you can type your own...">${ev.prepNotes || ''}</textarea>
+                <textarea id="event-prep-${ev.id}" class="form-input" style="min-height:80px; resize:vertical;" placeholder="AI will generate preparation notes here, or you can type your own...">${esc(ev.prepNotes || '')}</textarea>
             </div>
 
             <div class="form-group">
                 <label class="form-label">${t('event_notes')}</label>
-                <textarea id="event-notes-${ev.id}" class="form-input" style="min-height:80px; resize:vertical;" placeholder="Notes after the event...">${ev.notes || ''}</textarea>
+                <textarea id="event-notes-${ev.id}" class="form-input" style="min-height:80px; resize:vertical;" placeholder="Notes after the event...">${esc(ev.notes || '')}</textarea>
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--error);" onclick="CalendarModule.deleteEvent('${ev.id}')">Delete Event</button>
+                <button class="btn btn-sm btn-danger" onclick="CalendarModule.deleteEvent('${ev.id}')">Delete event</button>
                 <button class="btn btn-primary btn-sm" onclick="CalendarModule.saveEventDetails('${ev.id}')">Save Notes</button>
             </div>
         `;
         window.App.showModal(ev.title, html, '');
+        // (the modal title is set as plain text, so no escaping is needed there)
     }
 
     function saveEventDetails(id) {
@@ -412,6 +420,7 @@
         saveEvents();
         window.App.hideModal();
         renderSection();
+        window.App.refreshDashboard();
     }
 
     async function prepareWithAI(eventId) {
@@ -420,7 +429,7 @@
 
         const btn = document.getElementById(`btn-prep-ai-${eventId}`);
         if(btn) {
-            btn.innerHTML = 'Thinking...';
+            btn.innerHTML = 'Thinking…';
             btn.disabled = true;
         }
 
@@ -438,21 +447,10 @@ ${contextMsg}
 Based on the past notes (if any) and the nature of the upcoming event, write a concise preparation checklist and briefing for the user. What should they keep in mind? What tasks resulted from previous meetings that they should follow up on?
 You MUST write the response in ${lang} language. Respond only with the notes, no markdown blocks.`;
 
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ { role: "system", content: sysPrompt } ],
-                    temperature: 0.3
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            const aiText = data.choices[0].message.content.trim();
+            const aiText = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: 'Write the preparation notes.' }
+            ], { temperature: 0.3 });
             const prepArea = document.getElementById(`event-prep-${eventId}`);
             if (prepArea) {
                 prepArea.value = aiText;
@@ -468,6 +466,6 @@ You MUST write the response in ${lang} language. Respond only with the notes, no
         }
     }
 
-    window.CalendarModule = { init, renderSection, renderDashboard, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI, syncWithGoogle };
+    window.CalendarModule = { init, renderSection, renderDashboard, getUpcoming, prevMonth, nextMonth, showAddEventModal, addEvent, showEventDetails, saveEventDetails, deleteEvent, prepareWithAI, syncWithGoogle };
 
 })();

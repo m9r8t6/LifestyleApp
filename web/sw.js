@@ -2,13 +2,16 @@
 // reachable (so updates arrive immediately) and from the cache when offline.
 // API calls are never cached; the sync layer in js/store.js handles offline data.
 
-const CACHE_NAME = 'lifeos-shell-v42';
+const CACHE_NAME = 'lifeos-shell-v43';
 const SHELL = [
     './',
     './index.html',
     './index.css',
     './manifest.json',
     './icon.svg',
+    './icon-192.png',
+    './fonts/dm-sans.woff2',
+    './fonts/fraunces.woff2',
     './vendor/chart.umd.min.js',
     './js/store.js',
     './js/auth.js',
@@ -22,6 +25,7 @@ const SHELL = [
     './js/todo.js',
     './js/mail.js',
     './js/gamification.js',
+    './js/dashboard.js',
     './js/settings.js',
     './js/app.js',
 ];

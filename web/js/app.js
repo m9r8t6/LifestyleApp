@@ -28,7 +28,7 @@ window.App = (() => {
     // Sections that live behind the "More" button of the bottom bar
     const MORE_SECTIONS = ['chat', 'todo', 'mail', 'calendar', 'settings'];
 
-    const THEME_COLORS = { dark: '#07071a', light: '#f4f6fb' };
+    const THEME_COLORS = { dark: '#151311', light: '#f5f0e6' };
 
     // ── Module registry (populated during init) ──────────
     const modules = {
@@ -116,7 +116,53 @@ window.App = (() => {
      * @returns {string} Today's date as 'YYYY-MM-DD'.
      */
     function getToday() {
-        return new Date().toISOString().slice(0, 10);
+        // Local calendar day (not UTC), so the day changes at midnight where the user is
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    /** Add days to a 'YYYY-MM-DD' string (pure calendar math, no time zones involved). */
+    function addDays(dateStr, days) {
+        const d = new Date(`${dateStr}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+    }
+
+    /** Escape text before it is placed into HTML. */
+    function esc(text) {
+        return String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    /**
+     * Ask the AI through the server. Returns the answer text.
+     * @param {Array<{role:string, content:string}>} messages
+     * @param {{temperature?:number, json?:boolean, max_tokens?:number}} [options]
+     */
+    async function ai(messages, options = {}) {
+        const body = { messages };
+        if (typeof options.temperature === 'number') body.temperature = options.temperature;
+        if (options.max_tokens) body.max_tokens = options.max_tokens;
+        if (options.json) body.response_format = { type: 'json_object' };
+        let data;
+        try {
+            data = await window.Store.api('/api/ai/chat', { method: 'POST', body, timeout: 120000 });
+        } catch (err) {
+            throw new Error(err.status ? err.message : 'The assistant cannot be reached. Check your connection.');
+        }
+        const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        if (!content) throw new Error('The assistant returned an empty answer.');
+        return content.trim();
+    }
+
+    /** Parse JSON from an AI answer, tolerating code fences and surrounding text. */
+    function parseAIJson(text) {
+        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        let candidate = (fenced ? fenced[1] : text).trim();
+        const start = candidate.search(/[\[{]/);
+        const end = Math.max(candidate.lastIndexOf('}'), candidate.lastIndexOf(']'));
+        if (start > -1 && end > start) candidate = candidate.slice(start, end + 1);
+        return JSON.parse(candidate);
     }
 
     /**
@@ -136,7 +182,7 @@ window.App = (() => {
         if (modules.calendar && typeof modules.calendar.renderDashboard === 'function') modules.calendar.renderDashboard();
         if (modules.todo && typeof modules.todo.renderDashboard === 'function') modules.todo.renderDashboard();
         if (modules.gamification && typeof modules.gamification.recalculate === 'function') modules.gamification.recalculate();
-        if (modules.settings && typeof modules.settings.renderDashboard === 'function') modules.settings.renderDashboard();
+        if (window.Dashboard) window.Dashboard.render();
     }
 
     /**
@@ -145,24 +191,10 @@ window.App = (() => {
      */
     function onCompletionChange() {
         if (modules.gamification) modules.gamification.recalculate();
-
-        // Also update header XP bar in case gamification exposes data
-        _refreshHeaderXP();
+        if (window.Dashboard && activeSection === 'dashboard') window.Dashboard.render();
     }
 
     // ── Private helpers ──────────────────────────────────
-
-    /** Update the small XP bar shown in the header. */
-    function _refreshHeaderXP() {
-        if (!modules.gamification) return;
-
-        // GamificationModule is expected to keep #header-xp-fill
-        // and #level-text up-to-date inside recalculate(), but we
-        // invoke it again here in case the call came from outside.
-        if (typeof modules.gamification.recalculate === 'function') {
-            modules.gamification.recalculate();
-        }
-    }
 
     // ── Navigation ───────────────────────────────────────
 
@@ -352,7 +384,8 @@ window.App = (() => {
         if (!dateEl) return;
 
         const now = new Date();
-        const formatted = now.toLocaleDateString('en-US', {
+        const lang = window.i18n && window.i18n.getLang() === 'de' ? 'de-DE' : 'en-US';
+        const formatted = now.toLocaleDateString(lang, {
             weekday: 'long',
             month:   'long',
             day:     'numeric',
@@ -365,15 +398,16 @@ window.App = (() => {
     function _setupDayChangeDetection() {
         currentDate = getToday();
 
-        document.addEventListener('visibilitychange', () => {
+        const check = () => {
             if (document.hidden) return;
-
             const newDate = getToday();
             if (newDate !== currentDate) {
                 currentDate = newDate;
                 _onNewDay();
             }
-        });
+        };
+        document.addEventListener('visibilitychange', check);
+        setInterval(check, 60000);
     }
 
     /** Handle everything that needs to happen at midnight roll. */
@@ -381,20 +415,14 @@ window.App = (() => {
         // Update header date
         _setupDateDisplay();
 
-        // Regenerate today's meals if FoodModule supports it
-        if (modules.food && typeof modules.food.generateDailyMeals === 'function') {
-            modules.food.generateDailyMeals();
-        }
-
-        // Re-render all module sections so data is fresh
-        if (modules.food)     modules.food.renderSection();
-        if (modules.sport)    modules.sport.renderSection();
-        if (modules.bodycare) modules.bodycare.renderSection();
-        if (modules.calendar) modules.calendar.renderSection();
-        if (modules.todo)     modules.todo.renderSection();
-        if (modules.mail)     modules.mail.renderSection();
-
-        // Refresh dashboard
+        // Reload every module so daily checklists start fresh
+        ['food', 'sport', 'bodycare', 'calendar', 'todo', 'gamification'].forEach(name => {
+            const mod = modules[name];
+            if (mod && typeof mod.init === 'function') {
+                try { mod.init(); } catch (err) { console.error('[LifeOS] New-day reload failed:', err); }
+            }
+        });
+        _renderSection(activeSection);
         refreshDashboard();
 
         showToast('New day — data refreshed', 'info');
@@ -412,26 +440,6 @@ window.App = (() => {
                 hadController = true;
             });
         }
-    }
-
-    // ── SVG gradient for timer ring ──────────────────────
-
-    function _injectTimerGradient() {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '0');
-        svg.setAttribute('height', '0');
-        svg.style.position = 'absolute';
-
-        svg.innerHTML = `
-            <defs>
-                <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#6366f1"/>
-                    <stop offset="100%" stop-color="#06b6d4"/>
-                </linearGradient>
-            </defs>
-        `;
-
-        document.body.appendChild(svg);
     }
 
     // ── Module initialization ────────────────────────────
@@ -484,7 +492,6 @@ window.App = (() => {
         _setupNavigation();
         _setupModal();
         _setupDateDisplay();
-        _injectTimerGradient();
         _setupSyncIndicator();
 
         // 1. Who is signed in? (shows the sign-in screen when needed)
@@ -542,6 +549,10 @@ window.App = (() => {
         hideModal,
         showToast,
         getToday,
+        addDays,
+        esc,
+        ai,
+        parseAIJson,
         getDayOfWeek,
         refreshDashboard,
         onCompletionChange,

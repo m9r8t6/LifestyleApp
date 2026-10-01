@@ -8,6 +8,8 @@
     let isSummarizingCategory = { work: false, shopping: false, other: false };
 
     const t = (key) => window.i18n ? window.i18n.t(key) : key;
+    // Everything in an email comes from strangers: always escape before showing it
+    const esc = (text) => window.App.esc(text);
 
     function init() {
         // Nothing special to load on init, depends on RAGModule auth
@@ -36,10 +38,10 @@
         if (payload.mimeType === 'text/plain') return decodeBase64Url(payload.body.data);
         if (payload.mimeType === 'text/html') {
             // Very naive HTML to text, but better to get plain text if possible
-            const html = decodeBase64Url(payload.body.data);
-            const tmp = document.createElement('DIV');
-            tmp.innerHTML = html;
-            return tmp.textContent || tmp.innerText || "";
+            // Parse in a detached document so nothing in the mail can run or load
+            const doc = new DOMParser().parseFromString(decodeBase64Url(payload.body.data), 'text/html');
+            doc.querySelectorAll('script, style, head').forEach(el => el.remove());
+            return (doc.body ? doc.body.textContent : '').replace(/\n{3,}/g, '\n\n').trim();
         }
         
         if (payload.parts && payload.parts.length > 0) {
@@ -65,33 +67,15 @@
         try {
             const sysPrompt = `Categorize the following emails into exactly one of three categories: "work", "shopping", or "other". Return ONLY a valid JSON object with a "categories" array containing "id" and "category" keys. Example: {"categories": [{"id":"123", "category":"work"}]}`;
             
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ 
-                        { role: "system", content: sysPrompt },
-                        { role: "user", content: inputList }
-                    ],
-                    temperature: 0.1,
-                    response_format: { type: "json_object" }
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            let resultJson = data.choices[0].message.content.trim();
-            // Remove markdown code blocks if the AI misbehaves
-            resultJson = resultJson.replace(/```json/g, '').replace(/```/g, '');
-            
-            let parsed = JSON.parse(resultJson);
+            const resultJson = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: inputList }
+            ], { temperature: 0.1, json: true });
+            const parsed = window.App.parseAIJson(resultJson);
             let catArray = parsed.categories || [];
 
             const catMap = {};
-            catArray.forEach(c => catMap[c.id] = c.category.toLowerCase());
+            catArray.forEach(c => { if (c && c.id) catMap[c.id] = String(c.category || '').toLowerCase(); });
 
             emailsToCategorize.forEach(e => {
                 e.category = catMap[e.id] || 'other';
@@ -139,7 +123,7 @@
             const details = await Promise.all(detailsPromises);
 
             let fetchedEmails = details.map(d => {
-                const headers = d.payload.headers;
+                const headers = (d.payload && d.payload.headers) || [];
                 const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
                 const from = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
                 const date = headers.find(h => h.name.toLowerCase() === 'date')?.value || '';
@@ -153,9 +137,9 @@
                     snippet: d.snippet,
                     subject,
                     from,
-                    date: new Date(date).toLocaleString(),
+                    date: date && !isNaN(new Date(date)) ? new Date(date).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
                     body: body,
-                    isUnread: d.labelIds.includes('UNREAD'),
+                    isUnread: (d.labelIds || []).includes('UNREAD'),
                     category: 'other', // Default, will be updated
                     aiSummary: '',
                     aiDraft: ''
@@ -188,26 +172,12 @@
 
         try {
             const sysPrompt = `You are a highly efficient assistant. Summarize the following email in 2-3 concise bullet points. Focus on the core message and any actionable items. Write in the same language as the email.`;
-            const userPrompt = `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`;
+            const userPrompt = `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body.slice(0, 12000)}`;
 
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ 
-                        { role: "system", content: sysPrompt },
-                        { role: "user", content: userPrompt }
-                    ],
-                    temperature: 0.3
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            email.aiSummary = data.choices[0].message.content.trim();
+            email.aiSummary = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userPrompt }
+            ], { temperature: 0.3 });
         } catch (err) {
             console.error(err);
             window.App.showToast('Failed to summarize email.', 'error');
@@ -230,26 +200,12 @@
 
         try {
             const sysPrompt = `You are an AI assistant helping the user reply to an email. Write a polite, professional, and concise reply based on the context of the email. If the email asks for information, provide a generic polite placeholder like "[Insert Info Here]" for the user to fill out. Sign off with "Best regards,". Write in the same language as the email. Only output the reply text.`;
-            const userPrompt = `Email from: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body}\n\n${extraInst ? `Additional instructions for reply: ${extraInst}\n\n` : ''}Please draft a reply.`;
+            const userPrompt = `Email from: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body.slice(0, 12000)}\n\n${extraInst ? `Additional instructions for reply: ${extraInst}\n\n` : ''}Please draft a reply.`;
 
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ 
-                        { role: "system", content: sysPrompt },
-                        { role: "user", content: userPrompt }
-                    ],
-                    temperature: 0.7
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            email.aiDraft = data.choices[0].message.content.trim();
+            email.aiDraft = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userPrompt }
+            ], { temperature: 0.7 });
         } catch (err) {
             console.error(err);
             window.App.showToast('Failed to draft reply.', 'error');
@@ -274,24 +230,10 @@
             const sysPrompt = `You are a helpful AI assistant. Summarize the following unread emails from the "${category}" category. Provide a consolidated summary in 3-5 bullet points, highlighting only what the user needs to take note of or action on. Keep it concise.`;
             const userPrompt = unreadInCat.map(e => `Subject: ${e.subject}\nFrom: ${e.from}\nBody: ${e.snippet}`).join('\n\n---\n\n');
 
-            const response = await fetch('/api/ai/chat', {
-                credentials: 'same-origin',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
-                body: JSON.stringify({
-                    model: "deepseek-chat",
-                    messages: [ 
-                        { role: "system", content: sysPrompt },
-                        { role: "user", content: userPrompt }
-                    ],
-                    temperature: 0.3
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || 'API Error');
-
-            categorySummaries[category] = data.choices[0].message.content.trim();
+            categorySummaries[category] = await window.App.ai([
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userPrompt }
+            ], { temperature: 0.3 });
         } catch (err) {
             console.error('Category summary error:', err);
             window.App.showToast(`Failed to summarize ${category}.`, 'error');
@@ -312,12 +254,11 @@
         const container = document.getElementById('mail-container');
         if (!container) return;
 
+        const googleReady = Boolean(window.GoogleModule && window.GoogleModule.isReady);
         let html = `
             <div class="card-header-row" style="margin-bottom: 16px;">
                 <h2 style="margin:0;">Inbox</h2>
-                <button class="btn ${isConnected ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="MailModule.fetchEmails()" ${isLoading ? 'disabled' : ''}>
-                    ${isLoading ? 'Loading...' : (isConnected ? '🔄 Refresh' : 'Connect Gmail')}
-                </button>
+                ${googleReady ? `<button class="btn btn-ghost btn-sm" onclick="MailModule.fetchEmails()" ${isLoading ? 'disabled' : ''}>${isLoading ? 'Loading…' : 'Refresh'}</button>` : ''}
             </div>
             <div style="display:flex; flex-direction:column; gap:12px;">
         `;
@@ -325,18 +266,19 @@
         if (!isConnected && !isLoading) {
             html += `
                 <div class="glass-card" style="text-align:center; padding:32px 16px;">
-                    <div style="font-size:3rem; margin-bottom:16px;">📧</div>
-                    <h3 style="margin-bottom:8px;">Connect your Inbox</h3>
+                    <h3 style="margin-bottom:8px;">${googleReady ? 'Load your inbox' : 'Connect your inbox'}</h3>
                     <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5; margin-bottom:24px;">
-                        LifeOS can read your recent emails and use AI to summarize them and draft responses automatically.
+                        LifeOS reads your recent emails, sorts them and can summarise them or draft replies.
                     </p>
-                    <button class="btn btn-primary" onclick="window.RAGModule.authGoogle(false)">Authorize Google API</button>
+                    ${googleReady
+                        ? `<button class="btn btn-primary" onclick="MailModule.fetchEmails()">Load emails</button>`
+                        : `<button class="btn btn-primary" onclick="window.GoogleModule.authGoogle()">Connect Google</button>`}
                 </div>
             `;
         } else if (isLoading) {
             html += `<div class="empty-state"><div class="empty-state-text">Fetching emails...</div></div>`;
         } else if (emails.length === 0) {
-            html += `<div class="empty-state"><div class="empty-state-text">Inbox is zero! 🎉</div></div>`;
+            html += `<div class="empty-state"><div class="empty-state-text">Your inbox is empty.</div></div>`;
         } else {
             const categories = ['work', 'shopping', 'other'];
             const categoryLabels = { 
@@ -354,7 +296,7 @@
                 html += `
                     <div style="margin-top: 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
                         <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-secondary);">${categoryLabels[cat]}</h3>
-                        ${unreadCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="MailModule.summarizeCategory('${cat}')" ${isSummarizingCategory[cat] ? 'disabled' : ''} style="font-size: 0.7rem; border-color: rgba(99,102,241,0.3); color: var(--primary-light);">${isSummarizingCategory[cat] ? 'Thinking...' : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize Unread'}</button>` : ''}
+                        ${unreadCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="MailModule.summarizeCategory('${cat}')" ${isSummarizingCategory[cat] ? 'disabled' : ''} style="font-size: 0.75rem;">${isSummarizingCategory[cat] ? 'Thinking…' : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize Unread'}</button>` : ''}
                     </div>
                 `;
 
@@ -362,7 +304,7 @@
                     html += `
                         <div class="glass-card stagger-item" style="margin-bottom: 12px; border-left: 4px solid var(--accent);">
                             <div style="font-weight: 700; color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 8px;">Unread Summary</div>
-                            <div style="font-size: 0.85rem; color: var(--text); line-height: 1.5;">${categorySummaries[cat].replace(/\n/g, '<br>')}</div>
+                            <div style="font-size: 0.85rem; color: var(--text); line-height: 1.5;">${esc(categorySummaries[cat]).replace(/\n/g, '<br>')}</div>
                         </div>
                     `;
                 }
@@ -376,49 +318,50 @@
                     
                     html += `
                         <div class="glass-card-sm stagger-item" style="animation-delay:${idx*20}ms;">
-                            <div style="padding: 16px; cursor: pointer;" onclick="MailModule.toggleExpand('${email.id}')">
+                            <div style="cursor: pointer;" onclick="MailModule.toggleExpand('${esc(email.id)}')">
                                 <div style="display:flex; justify-content:space-between; margin-bottom:4px; align-items:center;">
                                     <div style="font-weight: 700; font-size: 1rem; color: ${email.isUnread ? 'var(--text)' : 'var(--text-secondary)'};">
-                                        ${email.isUnread ? '🔵 ' : ''}${fromName}
+                                        ${email.isUnread ? '<span class="unread-dot"></span>' : ''}${esc(fromName)}
                                     </div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">${email.date}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); white-space:nowrap; margin-left:8px;">${esc(email.date)}</div>
                                 </div>
                                 <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; color: ${email.isUnread ? 'var(--text)' : 'var(--text-secondary)'};">
-                                    ${email.subject}
+                                    ${esc(email.subject)}
                                 </div>
                                 <div style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                    ${email.snippet}
+                                    ${esc(email.snippet)}
                                 </div>
                             </div>
                             
                             <!-- Expanded Details -->
-                            <div id="expand-mail-${email.id}" style="display:none; border-top: 1px solid var(--glass-border); padding: 16px; background: var(--surface-sunken);">
+                            <div id="expand-mail-${esc(email.id)}" style="display:none; border-top: 1px solid var(--glass-border); padding: 14px 0 0; margin-top: 12px;">
                                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom: 16px;">
                                     <div style="display:flex; gap:8px;">
                                         <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize</button>
                                         <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Draft Reply</button>
                                     </div>
-                                    <input type="text" id="reply-inst-${email.id}" class="form-input" style="font-size: 0.8rem; padding: 6px 10px; background: var(--surface);" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
+                                    <input type="text" id="reply-inst-${email.id}" class="form-input" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
                                 </div>
                                 
                                 ${email.aiSummary ? `
-                                    <div style="margin-bottom: 16px; padding: 12px; background: rgba(6, 182, 212, 0.1); border-left: 3px solid var(--accent); border-radius: 4px;">
+                                    <div style="margin-bottom: 16px; padding: 12px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 4px;">
                                         <strong style="color:var(--accent); font-size:0.8rem; text-transform:uppercase;">AI Summary</strong>
                                         <div style="font-size: 0.85rem; color:var(--text); margin-top:8px;">
-                                            ${email.aiSummary.replace(/\n/g, '<br>')}
+                                            ${esc(email.aiSummary).replace(/\n/g, '<br>')}
                                         </div>
                                     </div>
                                 ` : ''}
 
                                 ${email.aiDraft ? `
-                                    <div style="margin-bottom: 16px; padding: 12px; background: rgba(139, 92, 246, 0.1); border-left: 3px solid var(--primary-light); border-radius: 4px;">
+                                    <div style="margin-bottom: 16px; padding: 12px; background: var(--primary-soft); border-left: 3px solid var(--primary-light); border-radius: 4px;">
                                         <strong style="color:var(--primary-light); font-size:0.8rem; text-transform:uppercase;">AI Draft Reply</strong>
-                                        <textarea class="form-input" style="min-height: 120px; resize:vertical; margin-top:8px;">${email.aiDraft}</textarea>
+                                        <textarea class="form-input" id="draft-${esc(email.id)}" style="min-height: 120px; resize:vertical; margin-top:8px;">${esc(email.aiDraft)}</textarea>
+                                        <button class="btn btn-sm btn-ghost" style="margin-top:8px;" onclick="MailModule.copyDraft('${esc(email.id)}')">Copy reply</button>
                                     </div>
                                 ` : ''}
 
-                                <div style="font-size: 0.85rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; font-family: monospace; overflow-x: auto;">
-                                    ${email.body}
+                                <div style="font-size: 0.85rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;">
+                                    ${esc(email.body)}
                                 </div>
                             </div>
                         </div>
@@ -437,6 +380,18 @@
         // Optional
     }
 
-    window.MailModule = { init, renderSection, renderDashboard, fetchEmails, summarizeEmail, draftReply, toggleExpand };
+    async function copyDraft(id) {
+        const area = document.getElementById(`draft-${id}`);
+        if (!area) return;
+        try {
+            await navigator.clipboard.writeText(area.value);
+            window.App.showToast('Reply copied', 'success');
+        } catch (e) {
+            area.select();
+            window.App.showToast('Select and copy the text manually.', 'info');
+        }
+    }
+
+    window.MailModule = { init, renderSection, renderDashboard, fetchEmails, summarizeEmail, summarizeCategory, draftReply, copyDraft, toggleExpand };
 
 })();

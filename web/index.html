@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#f4f6fb">
+    <meta name="theme-color" content="#f5f0e6">
     <meta name="color-scheme" content="light dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="description" content="LifeOS — Personal lifestyle hub for nutrition, fitness, and self-care routines">
     <meta name="google" content="notranslate">
     <title>LifeOS</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="icon.svg">
-    <link rel="apple-touch-icon" href="icon.svg">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="preload" href="fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
     <script>
         // Apply the theme before the first paint. Bright is the default.
         (function () {
@@ -24,7 +23,7 @@
             try { mode = localStorage.getItem('lifeos_theme'); } catch (e) {}
             var light = mode === 'system' ? window.matchMedia('(prefers-color-scheme: light)').matches : mode !== 'dark';
             if (light) document.documentElement.classList.add('light-theme');
-            else document.querySelector('meta[name="theme-color"]').content = '#07071a';
+            else document.querySelector('meta[name="theme-color"]').content = '#151311';
         })();
     </script>
     <link rel="stylesheet" href="index.css">
@@ -43,7 +42,7 @@
                     <div id="header-xp-fill" class="header-xp-fill"></div>
                 </div>
                 <div id="header-level" class="level-badge">
-                    <span class="level-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
+                    <span class="level-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
                     <span id="level-text" class="level-text">Lvl 1</span>
                 </div>
             </div>
@@ -54,6 +53,7 @@
             <!-- Dashboard -->
             <section id="section-dashboard" class="app-section active">
                 <div id="dashboard-progress" class="dashboard-block"></div>
+                <div id="dashboard-agenda" class="dashboard-block"></div>
             </section>
 
             <!-- Food / Nutrition -->
@@ -294,6 +294,7 @@
     <script src="js/todo.js"></script>
     <script src="js/mail.js"></script>
     <script src="js/gamification.js"></script>
+    <script src="js/dashboard.js"></script>
     <script src="js/settings.js"></script>
     <script src="vendor/chart.umd.min.js"></script>
     <script src="js/app.js"></script>
