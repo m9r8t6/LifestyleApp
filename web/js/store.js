@@ -286,7 +286,7 @@ window.Store = (() => {
         return data;
     }
 
-    /** Accepts a backup object ({ key: string }), e.g. the old `lifeos_backup.json` from Drive. */
+    /** Accepts a backup object ({ key: string }) as produced by exportData(). */
     async function importData(data) {
         if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Not a LifeOS backup file.');
         let count = 0;

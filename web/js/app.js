@@ -232,13 +232,12 @@ window.App = (() => {
 
     /** @param {'system'|'light'|'dark'} mode */
     function setTheme(mode) {
-        if (mode === 'system') localStorage.removeItem('lifeos_theme');
-        else localStorage.setItem('lifeos_theme', mode);
+        localStorage.setItem('lifeos_theme', mode);
         _applyTheme();
     }
 
     function getTheme() {
-        return localStorage.getItem('lifeos_theme') || 'system';
+        return localStorage.getItem('lifeos_theme') || 'light';
     }
 
     function _applyTheme() {

@@ -64,8 +64,3 @@ cd api && LIFESTYLE_DATABASE_URL=postgres://postgres:dev@127.0.0.1:55432/lifesty
 ```
 
 Note: `npm test` empties the tables of the database it points at.
-
-## Moving data from the old version
-
-Download `lifeos_backup.json` from the `LifeOS_Data` folder in Google Drive, then use
-Settings → Account & Data → "Import backup file".

@@ -19,7 +19,7 @@
         const t = window.i18n ? window.i18n.t : (k) => k;
         
         const soundOn = localStorage.getItem('lifeos_sound') !== 'off'; // default on
-        const theme = window.App ? window.App.getTheme() : 'system';
+        const theme = window.App ? window.App.getTheme() : 'light';
         const store = window.Store;
         const googleReady = Boolean(window.GoogleModule && window.GoogleModule.isReady);
         const googleConfigured = Boolean(window.GoogleModule && window.GoogleModule.configured);
@@ -56,8 +56,8 @@
                 <div class="form-group" style="margin-bottom: 24px;">
                     <label class="form-label">${t('theme')}</label>
                     <div class="time-toggle">
-                        <button type="button" class="time-toggle-btn ${theme === 'system' ? 'active' : ''}" data-theme="system">Auto</button>
                         <button type="button" class="time-toggle-btn ${theme === 'light' ? 'active' : ''}" data-theme="light">${t('light_mode')}</button>
+                        <button type="button" class="time-toggle-btn ${theme === 'system' ? 'active' : ''}" data-theme="system">Auto</button>
                         <button type="button" class="time-toggle-btn ${theme === 'dark' ? 'active' : ''}" data-theme="dark">${t('dark_mode')}</button>
                     </div>
                 </div>
@@ -84,7 +84,6 @@
                     <button class="btn btn-ghost" id="btn-logout" style="color:var(--error);">Sign out</button>
                 </div>
                 <input type="file" id="input-import-file" accept="application/json,.json" style="display:none;">
-                <p class="form-hint" style="margin-top:12px;">To bring over data from the previous version, download <code>lifeos_backup.json</code> from the <code>LifeOS_Data</code> folder in your Google Drive and import it here.</p>
             </div>
 
             <div class="glass-card stagger-item" style="margin-top: 24px;">

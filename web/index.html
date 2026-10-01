@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#07071a">
-    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#f4f6fb">
+    <meta name="color-scheme" content="light dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,15 +18,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
-        // Apply the saved theme before the first paint (no dark flash in bright mode)
+        // Apply the theme before the first paint. Bright is the default.
         (function () {
             var mode = null;
             try { mode = localStorage.getItem('lifeos_theme'); } catch (e) {}
-            var light = mode === 'light' || (mode !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
-            if (light) {
-                document.documentElement.classList.add('light-theme');
-                document.querySelector('meta[name="theme-color"]').content = '#f4f6fb';
-            }
+            var light = mode === 'system' ? window.matchMedia('(prefers-color-scheme: light)').matches : mode !== 'dark';
+            if (light) document.documentElement.classList.add('light-theme');
+            else document.querySelector('meta[name="theme-color"]').content = '#07071a';
         })();
     </script>
     <link rel="stylesheet" href="index.css">
