@@ -1,0 +1,52 @@
+# LifeOS on the home server (~/ai-backend). Kept out of the master compose file;
+# it runs as its own project and only joins the existing networks.
+#
+#   cd ~/ai-backend
+#   docker compose -p lifestyle -f docker-compose.lifestyle.yml up -d --build
+#
+# Secrets come from ~/ai-backend/.env (LIFESTYLE_DB_PASS, DEEPSEEK_API_KEY).
+
+services:
+  lifestyle-web:
+    build: ./apps/lifestyle-web
+    container_name: lifestyle-web
+    restart: unless-stopped
+    ports:
+      - "3110:80"
+    depends_on:
+      lifestyle-api:
+        condition: service_healthy
+    networks:
+      - lifestyle_net
+      - frontend_net   # reachable for the Cloudflare tunnel
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  lifestyle-api:
+    build: ./apps/lifestyle-api
+    container_name: lifestyle-api
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      LIFESTYLE_DATABASE_URL: postgres://${LIFESTYLE_DB_USER:-lifestyle}:${LIFESTYLE_DB_PASS}@shared_postgres_db:5432/${LIFESTYLE_DB_NAME:-lifestyle_db}
+      LIFESTYLE_ALLOW_SIGNUP: ${LIFESTYLE_ALLOW_SIGNUP:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      TZ: Europe/Berlin
+    networks:
+      - lifestyle_net
+      - backend_net    # shared Postgres
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  lifestyle_net:
+  frontend_net:
+    name: ai-backend_frontend_net
+    external: true
+  backend_net:
+    name: ai-backend_backend_net
+    external: true

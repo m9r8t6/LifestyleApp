@@ -1,12 +1,57 @@
-# LifestyleApp
+# LifestyleApp (LifeOS)
 
-LifeOS is a personal lifestyle hub designed for managing nutrition, fitness routines, and self-care rituals.
+LifeOS is a personal lifestyle hub for nutrition, fitness, self-care, to-dos, mail and calendar,
+built as a mobile-first web app that can be installed on the phone's home screen.
 
-## Features
-- **Food Module:** Custom recipe library, weekly grocery aggregation, daily nutritional gaps tracking, and custom macronutrient definitions.
-- **Sport Module:** Weekly planning, custom exercise routines, rest day management, and a robust rest timer.
-- **Body Care:** Manage morning/evening routines, track completion, handle varying frequencies (e.g., 'every 3rd day'), and view customized instructions.
-- **Progressive Web App (PWA):** Installable on both iOS and Android.
+## How it is built
 
-## Setup & Deployment
-This application consists of static HTML, CSS, and JS. It can be hosted on any static hosting provider (GitHub Pages, Netlify, Vercel) and operates entirely in the browser using `localStorage`.
+| Folder    | What it is |
+|-----------|------------|
+| `web/`    | The app itself: static HTML, CSS and JavaScript, served by nginx. |
+| `api/`    | Node.js backend: account, sessions, data sync, AI proxy. Stores data in PostgreSQL. |
+| `deploy/` | Compose file and scripts for the home server (`~/ai-backend`). |
+
+### Saving
+
+Every module reads and writes `localStorage` (instant, works offline). `web/js/store.js` watches
+those writes and mirrors every `lifeos_*` value to the server within a second, and pulls changes
+made on other devices when the app starts, comes back to the foreground, or once a minute.
+Offline changes are kept on the device and sent when the connection returns. The dot in the
+header shows the state (green: saved, orange: saving, red: offline).
+
+If two devices change the same value, the latest write wins and the replaced value is kept in
+the `kv_history` table (the last 30 versions per value).
+
+### Security
+
+- One account, created on first visit; afterwards sign-up is closed (`LIFESTYLE_ALLOW_SIGNUP=true` reopens it).
+- Passwords are hashed with scrypt; sessions are random tokens in an `HttpOnly`, `SameSite=Lax` cookie.
+- The DeepSeek API key lives only in the server's `.env`; the browser calls `/api/ai/chat`.
+- The database user and password are created by `deploy/server-setup.sh` on the server and never leave it.
+
+## Deploy
+
+```bash
+./deploy/deploy.sh
+```
+
+Copies `api/` and `web/` to `~/ai-backend/apps/lifestyle-api` and `lifestyle-web`, creates the
+`lifestyle_db` database on first run and rebuilds the two containers. The app then runs on port 3110.
+
+For Google sign-in (Mail, Calendar), installing the app on the phone and using it away from home,
+the app needs an HTTPS address: add a public hostname in the Cloudflare tunnel that points to
+`http://lifestyle-web:80`, and add that address to the Google OAuth client's authorised origins.
+
+## Local development
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build   # http://localhost:8099
+cd api && LIFESTYLE_DATABASE_URL=postgres://postgres:dev@127.0.0.1:55432/lifestyle_db npm test
+```
+
+Note: `npm test` empties the tables of the database it points at.
+
+## Moving data from the old version
+
+Settings → Account & Data → "Import from Google Drive" loads the `lifeos_backup.json` the old
+version stored in Drive. "Import backup file" does the same with a downloaded copy of that file.

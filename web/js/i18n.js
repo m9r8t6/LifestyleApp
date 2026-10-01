@@ -56,7 +56,10 @@
             event_notes: "Event Notes",
             prep_notes: "Prep Notes",
             prepare_with_ai: "Prepare with AI",
-            nav_chat: "Chat"
+            nav_chat: "Chat",
+            nav_more: "More",
+            nav_todo: "To-Do",
+            nav_mail: "Mail"
         },
         de: {
             nav_today: 'Heute',
@@ -112,7 +115,10 @@
             event_notes: "Termin-Notizen",
             prep_notes: "Vorbereitungsnotizen",
             prepare_with_ai: "Mit AI vorbereiten",
-            nav_chat: "Chat"
+            nav_chat: "Chat",
+            nav_more: "Mehr",
+            nav_todo: "To-Do",
+            nav_mail: "Mail"
         }
     };
 
@@ -150,8 +156,16 @@
         });
     }
 
+    /** Re-read the language after synced data arrived. */
+    function reload() {
+        const stored = localStorage.getItem('lifeos_lang') || 'en';
+        currentLang = translations[stored] ? stored : 'en';
+        document.documentElement.lang = currentLang;
+        applyTranslations();
+    }
+
     // Export globally
-    window.i18n = { setLang, getLang, t, applyTranslations };
+    window.i18n = { setLang, getLang, t, applyTranslations, reload };
 
     // Apply on load
     document.addEventListener('DOMContentLoaded', applyTranslations);

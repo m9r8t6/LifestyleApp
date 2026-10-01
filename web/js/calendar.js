@@ -374,7 +374,7 @@
             <div class="form-group">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <label class="form-label" style="margin:0;">${t('prep_notes')}</label>
-                    <button class="btn btn-sm btn-ghost" onclick="CalendarModule.prepareWithAI('${ev.id}')" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: #c4b5fd; font-size:0.7rem; padding:4px 8px;" id="btn-prep-ai-${ev.id}">
+                    <button class="btn btn-sm btn-ghost" onclick="CalendarModule.prepareWithAI('${ev.id}')" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: var(--violet-text); font-size:0.7rem; padding:4px 8px;" id="btn-prep-ai-${ev.id}">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> ${t('prepare_with_ai')}
                     </button>
                 </div>
@@ -418,12 +418,6 @@
         const ev = events.find(e => e.id === eventId);
         if (!ev) return;
 
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         const btn = document.getElementById(`btn-prep-ai-${eventId}`);
         if(btn) {
             btn.innerHTML = 'Thinking...';
@@ -444,9 +438,10 @@ ${contextMsg}
 Based on the past notes (if any) and the nature of the upcoming event, write a concise preparation checklist and briefing for the user. What should they keep in mind? What tasks resulted from previous meetings that they should follow up on?
 You MUST write the response in ${lang} language. Respond only with the notes, no markdown blocks.`;
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ { role: "system", content: sysPrompt } ],

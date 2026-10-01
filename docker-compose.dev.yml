@@ -1,0 +1,32 @@
+# Local test stack: http://localhost:8099
+#   docker compose -f docker-compose.dev.yml up -d --build
+# Data lives in a throwaway volume; `down -v` wipes it.
+
+services:
+  lifestyle-db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: lifestyle_db
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - lifestyle_dev_db:/var/lib/postgresql/data
+
+  lifestyle-api:
+    build: ./api
+    environment:
+      LIFESTYLE_DATABASE_URL: postgres://postgres:dev@lifestyle-db:5432/lifestyle_db
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    depends_on:
+      - lifestyle-db
+
+  lifestyle-web:
+    build: ./web
+    ports:
+      - "127.0.0.1:8099:80"
+    depends_on:
+      - lifestyle-api
+
+volumes:
+  lifestyle_dev_db:

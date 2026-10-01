@@ -60,20 +60,15 @@
 
     async function categorizeEmails(emailsToCategorize) {
         if (emailsToCategorize.length === 0) return;
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            emailsToCategorize.forEach(e => e.category = 'other');
-            return;
-        }
-
         const inputList = emailsToCategorize.map(e => `ID: ${e.id} | From: ${e.from} | Subject: ${e.subject}`).join('\n');
         
         try {
             const sysPrompt = `Categorize the following emails into exactly one of three categories: "work", "shopping", or "other". Return ONLY a valid JSON object with a "categories" array containing "id" and "category" keys. Example: {"categories": [{"id":"123", "category":"work"}]}`;
             
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ 
@@ -110,7 +105,7 @@
 
     async function fetchEmails() {
         if (!window.RAGModule || !window.RAGModule.isReady) {
-            window.App.showToast('Please connect to Google Drive/Gmail first (Settings or bottom button)', 'error');
+            window.App.showToast('Please connect Google first (Settings)', 'error');
             return;
         }
         const token = window.RAGModule.getAccessToken();
@@ -188,12 +183,6 @@
         const email = emails.find(e => e.id === id);
         if (!email) return;
 
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         const btn = document.getElementById(`btn-sum-${id}`);
         if(btn) { btn.innerHTML = 'Thinking...'; btn.disabled = true; }
 
@@ -201,9 +190,10 @@
             const sysPrompt = `You are a highly efficient assistant. Summarize the following email in 2-3 concise bullet points. Focus on the core message and any actionable items. Write in the same language as the email.`;
             const userPrompt = `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`;
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ 
@@ -233,12 +223,6 @@
         const email = emails.find(e => e.id === id);
         if (!email) return;
 
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         const btn = document.getElementById(`btn-reply-${id}`);
         if(btn) { btn.innerHTML = 'Drafting...'; btn.disabled = true; }
 
@@ -248,9 +232,10 @@
             const sysPrompt = `You are an AI assistant helping the user reply to an email. Write a polite, professional, and concise reply based on the context of the email. If the email asks for information, provide a generic polite placeholder like "[Insert Info Here]" for the user to fill out. Sign off with "Best regards,". Write in the same language as the email. Only output the reply text.`;
             const userPrompt = `Email from: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body}\n\n${extraInst ? `Additional instructions for reply: ${extraInst}\n\n` : ''}Please draft a reply.`;
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ 
@@ -282,12 +267,6 @@
             return;
         }
 
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         isSummarizingCategory[category] = true;
         renderSection();
 
@@ -295,9 +274,10 @@
             const sysPrompt = `You are a helpful AI assistant. Summarize the following unread emails from the "${category}" category. Provide a consolidated summary in 3-5 bullet points, highlighting only what the user needs to take note of or action on. Keep it concise.`;
             const userPrompt = unreadInCat.map(e => `Subject: ${e.subject}\nFrom: ${e.from}\nBody: ${e.snippet}`).join('\n\n---\n\n');
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ 
@@ -412,13 +392,13 @@
                             </div>
                             
                             <!-- Expanded Details -->
-                            <div id="expand-mail-${email.id}" style="display:none; border-top: 1px solid var(--glass-border); padding: 16px; background: rgba(0,0,0,0.2);">
+                            <div id="expand-mail-${email.id}" style="display:none; border-top: 1px solid var(--glass-border); padding: 16px; background: var(--surface-sunken);">
                                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom: 16px;">
                                     <div style="display:flex; gap:8px;">
                                         <button class="btn btn-sm btn-accent" id="btn-sum-${email.id}" onclick="MailModule.summarizeEmail('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Summarize</button>
                                         <button class="btn btn-sm btn-ghost" id="btn-reply-${email.id}" onclick="MailModule.draftReply('${email.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Draft Reply</button>
                                     </div>
-                                    <input type="text" id="reply-inst-${email.id}" class="form-input" style="font-size: 0.8rem; padding: 6px 10px; background: rgba(255,255,255,0.05);" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
+                                    <input type="text" id="reply-inst-${email.id}" class="form-input" style="font-size: 0.8rem; padding: 6px 10px; background: var(--surface);" placeholder="Optional instructions (e.g., 'Say yes, but only next week')">
                                 </div>
                                 
                                 ${email.aiSummary ? `

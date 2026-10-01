@@ -3,6 +3,11 @@
 
     const STORAGE_KEY = 'lifeos_chat_history';
     let messages = [];
+    let bound = false;
+
+    function escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
 
     function init() {
         try {
@@ -10,7 +15,17 @@
         } catch (e) {
             messages = [];
         }
-        
+        if (bound) return;
+        bound = true;
+
+        document.querySelectorAll('.chat-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const input = document.getElementById('chat-input');
+                input.value = chip.textContent;
+                input.focus();
+            });
+        });
+
         const sendBtn = document.getElementById('btn-chat-send');
         const inputField = document.getElementById('chat-input');
         
@@ -71,15 +86,6 @@ ${JSON.stringify(bodycare)}
 
         let html = '';
         
-        // Add RAG control bar at the top
-        html += `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:8px; margin-bottom:12px;">
-                <div style="font-size:0.8rem; color:var(--text-muted);">
-                    Drive Vector DB: <strong style="color:${window.RAGModule && window.RAGModule.hasVectors ? 'var(--success)' : 'var(--error)'}">${window.RAGModule && window.RAGModule.hasVectors ? 'Active' : 'Empty/Not Connected'}</strong>
-                </div>
-            </div>
-        `;
-
         if (messages.length === 0) {
             html += `<div style="text-align:center; color:var(--text-muted); margin-top:40px; font-size:0.9rem;">No messages yet. Ask me about your data!</div>`;
         } else {
@@ -87,14 +93,7 @@ ${JSON.stringify(bodycare)}
                 const isUser = msg.role === 'user';
                 html += `
                     <div style="display:flex; justify-content:${isUser ? 'flex-end' : 'flex-start'}; margin-bottom:12px;">
-                        <div style="max-width:80%; padding:10px 14px; border-radius:16px; font-size:0.9rem; line-height:1.4; white-space:pre-wrap; 
-                            background:${isUser ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; 
-                            color:${isUser ? '#fff' : 'var(--text)'};
-                            border-bottom-${isUser ? 'right' : 'left'}-radius: 4px;
-                            border: 1px solid ${isUser ? 'transparent' : 'rgba(255,255,255,0.1)'};
-                        ">
-                            ${msg.content}
-                        </div>
+                        <div class="chat-bubble ${isUser ? 'user' : 'assistant'}">${escapeHtml(msg.content)}</div>
                     </div>
                 `;
             });
@@ -109,12 +108,6 @@ ${JSON.stringify(bodycare)}
         const text = inputField.value.trim();
         if (!text) return;
 
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         // Add user message
         messages.push({ role: 'user', content: text });
         saveMessages();
@@ -126,27 +119,14 @@ ${JSON.stringify(bodycare)}
         const loadingId = 'loading-' + Date.now();
         container.insertAdjacentHTML('beforeend', `
             <div id="${loadingId}" style="display:flex; justify-content:flex-start; margin-bottom:12px;">
-                <div style="max-width:80%; padding:10px 14px; border-radius:16px; font-size:0.9rem; background:rgba(255,255,255,0.05); color:var(--text-muted); border-bottom-left-radius:4px; border: 1px solid rgba(255,255,255,0.1);">
-                    <span style="animation: pulse 1.5s infinite;">Thinking...</span>
-                </div>
+                <div class="chat-bubble assistant thinking">Thinking…</div>
             </div>
         `);
         container.scrollTop = container.scrollHeight;
 
         try {
-            // Check RAG for relevant context
-            let ragContext = "";
-            if (window.RAGModule && window.RAGModule.hasVectors) {
-                const results = await window.RAGModule.search(text, 3);
-                if (results.length > 0) {
-                    ragContext = "\n\n--- EXTERNAL KNOWLEDGE FROM DRIVE ---\n" + 
-                        results.map(r => `[Source: ${r.source}]\n${r.text}`).join('\n\n');
-                }
-            }
-
             // Prepare API payload
             let sysPrompt = buildSystemPrompt();
-            sysPrompt += ragContext;
             
             // Limit history to last 10 messages to save context
             const historyToInclude = messages.slice(-10);
@@ -156,9 +136,10 @@ ${JSON.stringify(bodycare)}
                 ...historyToInclude
             ];
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: apiMessages,
@@ -176,7 +157,7 @@ ${JSON.stringify(bodycare)}
         } catch (err) {
             console.error('Chat AI Error:', err);
             window.App.showToast('Failed to connect to AI', 'error');
-            messages.push({ role: 'assistant', content: 'Sorry, I encountered an error. Please check your API key and connection.' });
+            messages.push({ role: 'assistant', content: 'Sorry, I could not reach the assistant. Please try again in a moment.' });
             saveMessages();
         } finally {
             renderSection();

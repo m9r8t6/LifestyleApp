@@ -44,8 +44,8 @@
         }
 
         const renderItem = (item, idx) => `
-            <div class="checklist-item stagger-item" style="animation-delay:${idx*30}ms;" onclick="TodoModule.toggleTask('${item.id}')">
-                <div class="checkbox ${item.completed ? 'checked' : ''}" style="border-color: var(--primary);"></div>
+            <div class="checklist-item stagger-item ${item.completed ? 'checked' : ''}" onclick="TodoModule.toggleTask('${item.id}')">
+                <div class="checklist-check">✓</div>
                 <div class="checklist-item-content" style="${item.completed ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">
                     <div style="font-weight: 600;">${item.title}</div>
                     ${item.description ? `<div style="font-size: 0.8rem; margin-top: 4px; ${item.completed ? 'color: var(--text-muted);' : 'color: var(--text-secondary);'}">${item.description}</div>` : ''}

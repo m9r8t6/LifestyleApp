@@ -299,12 +299,12 @@
                     <span class="recipe-tag omega3">Omega-3: ${r.nutrients.omega3}mg</span>
                     <span class="recipe-tag">Iron: ${r.nutrients.iron}mg</span>
                     <span class="recipe-tag">Vit B12: ${r.nutrients.vitaminB12}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(234, 179, 8, 0.1); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.2);">Vit A: ${r.nutrients.vitaminA || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(249, 115, 22, 0.1); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.2);">Vit C: ${r.nutrients.vitaminC || 0}mg</span>
-                    <span class="recipe-tag" style="background: rgba(250, 204, 21, 0.1); color: #fef08a; border: 1px solid rgba(250, 204, 21, 0.2);">Vit D: ${r.nutrients.vitaminD || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(163, 230, 53, 0.1); color: #d9f99d; border: 1px solid rgba(163, 230, 53, 0.2);">Vit E: ${r.nutrients.vitaminE || 0}mg</span>
-                    <span class="recipe-tag" style="background: rgba(236, 72, 153, 0.1); color: #fbcfe8; border: 1px solid rgba(236, 72, 153, 0.2);">Biotin: ${r.nutrients.biotin || 0}mcg</span>
-                    <span class="recipe-tag" style="background: rgba(168, 85, 247, 0.1); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.2);">Magnesium: ${r.nutrients.magnesium || 0}mg</span>
+                    <span class="recipe-tag" style="background: rgba(234, 179, 8, 0.1); color: var(--tag-yellow); border: 1px solid rgba(234, 179, 8, 0.2);">Vit A: ${r.nutrients.vitaminA || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(249, 115, 22, 0.1); color: var(--tag-orange); border: 1px solid rgba(249, 115, 22, 0.2);">Vit C: ${r.nutrients.vitaminC || 0}mg</span>
+                    <span class="recipe-tag" style="background: rgba(250, 204, 21, 0.1); color: var(--tag-gold); border: 1px solid rgba(250, 204, 21, 0.2);">Vit D: ${r.nutrients.vitaminD || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(163, 230, 53, 0.1); color: var(--tag-lime); border: 1px solid rgba(163, 230, 53, 0.2);">Vit E: ${r.nutrients.vitaminE || 0}mg</span>
+                    <span class="recipe-tag" style="background: rgba(236, 72, 153, 0.1); color: var(--tag-pink); border: 1px solid rgba(236, 72, 153, 0.2);">Biotin: ${r.nutrients.biotin || 0}mcg</span>
+                    <span class="recipe-tag" style="background: rgba(168, 85, 247, 0.1); color: var(--tag-purple); border: 1px solid rgba(168, 85, 247, 0.2);">Magnesium: ${r.nutrients.magnesium || 0}mg</span>
                 </div>
                 <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('ingredients')}</h4>
                 <ul style="margin: 0 0 12px 0; padding-left: 18px; font-size: 0.85rem; color: var(--text-muted);">
@@ -312,8 +312,8 @@
                 </ul>
                 <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary);">${t('instructions')}</h4>
                 <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); white-space: pre-wrap;">${r.instructions}</p>
-                <div style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; display: flex; justify-content: flex-end;">
-                    <button class="btn btn-sm btn-ghost" onclick="FoodModule.showSwapModal('${r.id}')" style="font-size:0.75rem; color:var(--text-muted); border: 1px solid rgba(255,255,255,0.2);">
+                <div style="margin-top: 12px; border-top: 1px solid var(--glass-border); padding-top: 12px; display: flex; justify-content: flex-end;">
+                    <button class="btn btn-sm btn-ghost" onclick="FoodModule.showSwapModal('${r.id}')" style="font-size:0.75rem; color:var(--text-muted); border: 1px solid var(--glass-border);">
                         🔄 Swap Meal
                     </button>
                 </div>
@@ -344,7 +344,7 @@
                     </div>
                     <h2>${t('todays_meals')}</h2>
                 </div>
-                <button type="button" class="btn btn-sm btn-ghost" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: #c4b5fd; font-size:0.75rem;">
+                <button type="button" class="btn btn-sm btn-ghost" onclick="FoodModule.generateAIPlan()" id="btn-ai-plan" style="border: 1px dashed rgba(139, 92, 246, 0.4); color: var(--violet-text); font-size:0.75rem;">
                     AI Plan
                 </button>
             </div>
@@ -514,7 +514,7 @@
             <div class="card-header-row" style="margin-top:24px;">
                 <h2>${t('recipe_library')}</h2>
                 <div style="display:flex; gap:6px;">
-                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">Recommend</button>
+                    <button class="btn btn-sm" id="btn-recommend-recipe" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--violet-text); font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">Recommend</button>
                     <button class="btn btn-primary btn-sm" id="btn-add-recipe" style="font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">${t('add_recipe')}</button>
                 </div>
             </div>
@@ -628,7 +628,7 @@
             </div>
 
             <div style="margin: 16px 0; text-align: center;">
-                <button type="button" id="btn-calc-macros" class="btn btn-sm" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd;">
+                <button type="button" id="btn-calc-macros" class="btn btn-sm" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--violet-text);">
                     Auto-Calculate Macros with AI
                 </button>
             </div>
@@ -709,7 +709,7 @@
                 return;
             }
             list.innerHTML = window.currentRecipeIngredients.map((i, idx) => `
-                <div style="display:flex; justify-content:space-between; margin-bottom: 4px; padding: 4px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 4px; padding: 4px 8px; background: var(--surface); border-radius: 4px;">
                     <span>${i.amount} ${i.unit} ${i.name}</span>
                     <span style="color:var(--error); cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.currentRecipeIngredients.splice(${idx}, 1); window.renderTempIngredients();">×</span>
                 </div>
@@ -736,11 +736,6 @@
         });
 
         document.getElementById('btn-calc-macros').addEventListener('click', async () => {
-            const apiKey = localStorage.getItem('lifeos_deepseek_key');
-            if (!apiKey) {
-                window.App.showToast('Please add your DeepSeek API key in Settings.', 'error');
-                return;
-            }
             
             if (window.currentRecipeIngredients.length === 0) {
                 window.App.showToast('Please add some ingredients first.', 'error');
@@ -755,11 +750,11 @@
             btn.disabled = true;
 
             try {
-                const response = await fetch('https://api.deepseek.com/chat/completions', {
+                const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Content-Type': 'application/json', 'X-Requested-With': 'lifeos'
                     },
                     body: JSON.stringify({
                         model: "deepseek-chat",
@@ -938,12 +933,6 @@
     }
 
     async function generateAIPlan() {
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            if(window.App && window.App.showToast) window.App.showToast('Please add your DeepSeek API key in Settings to use the AI Meal Planner.', 'error');
-            return;
-        }
-
         const btn = document.getElementById('btn-ai-plan');
         if(btn) {
             btn.innerHTML = 'Planning... ⏳';
@@ -1011,9 +1000,10 @@ ${JSON.stringify(catalog)}
 
 Return ONLY a valid JSON object where the keys are the following exact date strings: ${JSON.stringify(targetDates)} and the values are arrays of exactly 3 recipe IDs. Do not include markdown formatting.`;
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'lifeos' },
                 body: JSON.stringify({
                     model: "deepseek-chat",
                     messages: [ { role: "system", content: sysPrompt } ],
@@ -1067,12 +1057,6 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
     }
 
     async function recommendNewRecipe() {
-        const apiKey = localStorage.getItem('lifeos_deepseek_key');
-        if (!apiKey) {
-            if(window.App) window.App.showToast('Please set your DeepSeek API Key in Settings first', 'error');
-            return;
-        }
-
         const btn = document.getElementById('btn-recommend-recipe');
         if(btn) {
             btn.innerHTML = 'Thinking...';
@@ -1126,11 +1110,11 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
 `;
 
         try {
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch('/api/ai/chat', {
+                credentials: 'same-origin',
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Content-Type': 'application/json', 'X-Requested-With': 'lifeos'
                 },
                 body: JSON.stringify({
                     model: 'deepseek-chat',

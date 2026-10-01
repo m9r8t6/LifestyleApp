@@ -1,6 +1,10 @@
 (function() {
     'use strict';
 
+    function escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function init() {
         // Just bind some events, rendering is done when section is active?
         // Let's render once on init
@@ -15,7 +19,12 @@
         const t = window.i18n ? window.i18n.t : (k) => k;
         
         const soundOn = localStorage.getItem('lifeos_sound') !== 'off'; // default on
-        const isLight = document.body.classList.contains('light-theme');
+        const theme = window.App ? window.App.getTheme() : 'system';
+        const store = window.Store;
+        const googleReady = Boolean(window.GoogleModule && window.GoogleModule.isReady);
+        const lastSync = store && store.lastSync
+            ? new Date(store.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '';
 
         const defaultProfile = { sex: 'male', age: 25, weight: 75, height: 180, diet: 'vegetarian', goals: { muscle: false, skin: false, hair: false } };
         let profile = defaultProfile;
@@ -27,7 +36,7 @@
         const html = `
             <div class="card-header-row">
                 <div class="section-title" style="margin:0">
-                    <div class="section-title-icon" style="background:rgba(255,255,255,0.1); color:var(--text);">
+                    <div class="section-title-icon" style="background:var(--glass-border); color:var(--text);">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </div>
                     <h2>${t('settings_title')}</h2>
@@ -46,40 +55,48 @@
                 <div class="form-group" style="margin-bottom: 24px;">
                     <label class="form-label">${t('theme')}</label>
                     <div class="time-toggle">
-                        <button type="button" class="time-toggle-btn ${!isLight ? 'active' : ''}" id="btn-theme-dark">${t('dark_mode')}</button>
-                        <button type="button" class="time-toggle-btn ${isLight ? 'active' : ''}" id="btn-theme-light">${t('light_mode')}</button>
+                        <button type="button" class="time-toggle-btn ${theme === 'system' ? 'active' : ''}" data-theme="system">Auto</button>
+                        <button type="button" class="time-toggle-btn ${theme === 'light' ? 'active' : ''}" data-theme="light">${t('light_mode')}</button>
+                        <button type="button" class="time-toggle-btn ${theme === 'dark' ? 'active' : ''}" data-theme="dark">${t('dark_mode')}</button>
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">${t('timer_sound')}</label>
-                    <div class="time-toggle">
+                    <div class="time-toggle" style="margin-bottom:0;">
                         <button type="button" class="time-toggle-btn ${soundOn ? 'active' : ''}" id="btn-sound-on">${t('on')}</button>
                         <button type="button" class="time-toggle-btn ${!soundOn ? 'active' : ''}" id="btn-sound-off">${t('off')}</button>
                     </div>
                 </div>
+            </div>
 
-                <div class="form-group" style="margin-top: 24px; margin-bottom: 0;">
-                    <label class="form-label">DeepSeek API Key (AI Recipe Macros & Chat)</label>
-                    <input type="password" id="input-api-key" class="form-input" value="${localStorage.getItem('lifeos_deepseek_key') || ''}" placeholder="sk-..." style="font-family: monospace;">
+            <div class="glass-card stagger-item" style="margin-top: 24px;">
+                <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Account &amp; Data</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 16px;">
+                    Signed in as <strong style="color:var(--text);">${escapeHtml(store ? store.user || '' : '')}</strong>.
+                    Everything is saved on your server automatically${lastSync ? ` (last saved ${lastSync})` : ''}.
+                </p>
+                <div class="settings-actions">
+                    <button class="btn btn-ghost" id="btn-export-data">Download backup</button>
+                    <button class="btn btn-ghost" id="btn-import-data">Import backup file</button>
+                    <button class="btn btn-ghost" id="btn-import-drive">Import from Google Drive</button>
+                    <button class="btn btn-ghost" id="btn-change-password">Change password</button>
+                    <button class="btn btn-ghost" id="btn-logout" style="color:var(--error);">Sign out</button>
                 </div>
-                
-                <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
-                    <label class="form-label">HuggingFace API Token (For RAG Embeddings)</label>
-                    <input type="password" id="input-hf-key" class="form-input" value="${localStorage.getItem('lifeos_hf_token') || ''}" placeholder="hf_..." style="font-family: monospace;">
-                </div>
+                <input type="file" id="input-import-file" accept="application/json,.json" style="display:none;">
+                <p class="form-hint" style="margin-top:12px;">"Import from Google Drive" brings over the data the previous version of the app stored in your Drive.</p>
+            </div>
 
-                <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
-                    <label class="form-label">Google Cloud Client ID (For Drive RAG)</label>
-                    <input type="text" id="input-google-client" class="form-input" value="${localStorage.getItem('lifeos_google_client_id') || ''}" placeholder="...apps.googleusercontent.com" style="font-family: monospace;">
+            <div class="glass-card stagger-item" style="margin-top: 24px;">
+                <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Google (Mail &amp; Calendar)</h3>
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label">Google Cloud Client ID</label>
+                    <input type="text" id="input-google-client" class="form-input" value="${escapeHtml(localStorage.getItem('lifeos_google_client_id') || '')}" placeholder="...apps.googleusercontent.com" autocapitalize="off" autocorrect="off" spellcheck="false">
                 </div>
-
-                <div style="margin-top: 16px; display:flex; gap:8px;">
-                    <button class="btn btn-secondary btn-sm" id="btn-auth-drive" style="flex:1; border:1px dashed var(--accent); color:var(--accent);">${window.RAGModule && window.RAGModule.isReady ? 'Drive Connected <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-left:4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : 'Connect Google Drive'}</button>
-                    <button class="btn btn-secondary btn-sm" id="btn-sync-drive" style="flex:1; border:1px dashed var(--primary-light); color:var(--primary-light); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Sync to Drive</button>
-                    <button class="btn btn-secondary btn-sm" id="btn-restore-drive" style="flex:1; border:1px dashed var(--warning, #f59e0b); color:var(--warning, #f59e0b); display:${window.RAGModule && window.RAGModule.isReady ? 'block' : 'none'};">Restore from Drive</button>
+                <div class="settings-actions">
+                    <button class="btn btn-ghost" id="btn-auth-google" style="color:var(--accent);">${googleReady ? 'Google connected ✓' : 'Connect Google'}</button>
+                    ${googleReady ? '<button class="btn btn-ghost" id="btn-disconnect-google">Disconnect</button>' : ''}
                 </div>
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">Keys are stored locally in your browser. Never synced or shared.</p>
             </div>
 
             <div class="glass-card stagger-item" style="margin-top: 24px; margin-bottom: 24px;">
@@ -115,7 +132,7 @@
                         <div id="diet-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
                         <div style="display:flex; gap:8px;">
                             <input type="text" id="diet-input" class="form-input" style="font-size:0.9rem;" placeholder="e.g. No Milk">
-                            <button id="btn-add-diet" class="btn btn-secondary" style="padding:0 12px; font-weight:bold; background:var(--bg-glass); border:1px solid rgba(255,255,255,0.1); color:var(--text); border-radius:6px; cursor:pointer;">+</button>
+                            <button id="btn-add-diet" class="btn btn-secondary" style="padding:0 12px; font-weight:bold; background:var(--surface); border:1px solid var(--glass-border); color:var(--text); border-radius:var(--r-md); cursor:pointer; min-width:44px;">+</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -170,7 +187,7 @@
             if (!dietChipsContainer) return;
             dietChipsContainer.innerHTML = savedDiet.map((d, i) => `
                 <div style="background:var(--primary-light); color:white; padding:4px 10px; border-radius:12px; font-size:0.75rem; display:flex; align-items:center; gap:6px;">
-                    ${d} <span style="cursor:pointer; font-weight:bold;" onclick="window.removeDiet(${i})">×</span>
+                    ${escapeHtml(d)} <span style="cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.removeDiet(${i})">×</span>
                 </div>
             `).join('');
         };
@@ -189,15 +206,11 @@
         document.getElementById('btn-lang-en')?.addEventListener('click', () => { window.i18n.setLang('en'); renderSection(); });
         document.getElementById('btn-lang-de')?.addEventListener('click', () => { window.i18n.setLang('de'); renderSection(); });
 
-        document.getElementById('btn-theme-light')?.addEventListener('click', () => { 
-            document.body.classList.add('light-theme'); 
-            localStorage.setItem('lifeos_theme', 'light');
-            renderSection(); 
-        });
-        document.getElementById('btn-theme-dark')?.addEventListener('click', () => { 
-            document.body.classList.remove('light-theme'); 
-            localStorage.setItem('lifeos_theme', 'dark');
-            renderSection(); 
+        container.querySelectorAll('[data-theme]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                window.App.setTheme(btn.dataset.theme);
+                renderSection();
+            });
         });
 
         document.getElementById('btn-sound-on')?.addEventListener('click', () => { 
@@ -209,31 +222,96 @@
             renderSection(); 
         });
 
-        document.getElementById('input-api-key')?.addEventListener('change', (e) => {
-            localStorage.setItem('lifeos_deepseek_key', e.target.value.trim());
-            if(window.App) window.App.showToast('DeepSeek API Key saved', 'success');
-        });
-        
-        document.getElementById('input-hf-key')?.addEventListener('change', (e) => {
-            localStorage.setItem('lifeos_hf_token', e.target.value.trim());
-            if(window.App) window.App.showToast('HuggingFace Token saved', 'success');
-        });
-
         document.getElementById('input-google-client')?.addEventListener('change', (e) => {
             localStorage.setItem('lifeos_google_client_id', e.target.value.trim());
             if(window.App) window.App.showToast('Google Client ID saved', 'success');
         });
 
-        document.getElementById('btn-auth-drive')?.addEventListener('click', () => {
-            if (window.RAGModule) window.RAGModule.authGoogle();
+        document.getElementById('btn-auth-google')?.addEventListener('click', () => {
+            if (window.GoogleModule) window.GoogleModule.authGoogle();
+        });
+        document.getElementById('btn-disconnect-google')?.addEventListener('click', () => {
+            if (window.GoogleModule) window.GoogleModule.disconnect();
         });
 
-        document.getElementById('btn-sync-drive')?.addEventListener('click', () => {
-            if (window.RAGModule) window.RAGModule.syncToDrive();
+        // ── Account & data ──
+        document.getElementById('btn-export-data')?.addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify(window.Store.exportData(), null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `lifeos-backup-${window.App.getToday()}.json`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
         });
 
-        document.getElementById('btn-restore-drive')?.addEventListener('click', () => {
-            if (window.RAGModule) window.RAGModule.restoreFromDrive();
+        const runImport = async (data, label) => {
+            if (!confirm(`Import ${label}? Entries with the same name are replaced by the imported ones.`)) return;
+            try {
+                const count = await window.Store.importData(data);
+                window.App.showToast(`Imported ${count} data sets`, 'success');
+                window.App.reloadData();
+            } catch (err) {
+                window.App.showToast(err.message, 'error');
+            }
+        };
+
+        const fileInput = document.getElementById('input-import-file');
+        document.getElementById('btn-import-data')?.addEventListener('click', () => fileInput.click());
+        fileInput?.addEventListener('change', async () => {
+            const file = fileInput.files[0];
+            fileInput.value = '';
+            if (!file) return;
+            try {
+                await runImport(JSON.parse(await file.text()), `"${file.name}"`);
+            } catch (err) {
+                window.App.showToast('This file could not be read as a backup.', 'error');
+            }
+        });
+
+        document.getElementById('btn-import-drive')?.addEventListener('click', async () => {
+            try {
+                window.App.showToast('Looking for your Drive backup…', 'info');
+                const backup = await window.GoogleModule.fetchDriveBackup();
+                const when = new Date(backup.modifiedTime).toLocaleString();
+                await runImport(backup.data, `the Drive backup from ${when}`);
+            } catch (err) {
+                window.App.showToast(err.message, 'error');
+            }
+        });
+
+        document.getElementById('btn-change-password')?.addEventListener('click', () => {
+            window.App.showModal('Change password', `
+                <div class="form-group">
+                    <label class="form-label">Current password</label>
+                    <input type="password" id="pw-current" class="form-input" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New password (min. 8 characters)</label>
+                    <input type="password" id="pw-next" class="form-input" autocomplete="new-password">
+                </div>
+            `, '<button class="btn btn-primary" id="btn-save-password">Save password</button>');
+            document.getElementById('btn-save-password').addEventListener('click', async () => {
+                try {
+                    await window.Store.api('/api/auth/password', {
+                        method: 'POST',
+                        body: {
+                            current: document.getElementById('pw-current').value,
+                            next: document.getElementById('pw-next').value,
+                        },
+                    });
+                    window.App.hideModal();
+                    window.App.showToast('Password changed. Other devices were signed out.', 'success');
+                } catch (err) {
+                    const msg = err.message === 'invalid_credentials' ? 'The current password is wrong.'
+                        : err.message === 'weak_password' ? 'The new password needs at least 8 characters.'
+                        : 'Could not change the password.';
+                    window.App.showToast(msg, 'error');
+                }
+            });
+        });
+
+        document.getElementById('btn-logout')?.addEventListener('click', async () => {
+            if (await window.Store.logout()) window.location.reload();
         });
 
         document.getElementById('btn-save-profile')?.addEventListener('click', () => {
@@ -260,11 +338,6 @@
                 window.FoodModule.updateDailyTargets();
             }
         });
-    }
-
-    // Apply theme on load
-    if (localStorage.getItem('lifeos_theme') === 'light') {
-        document.body.classList.add('light-theme');
     }
 
     window.SettingsModule = { init, renderSection };

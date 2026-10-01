@@ -346,7 +346,7 @@ window.GamificationModule = (() => {
                     <div style="position:relative; display:inline-block; width:120px; height:120px; margin-bottom:12px;">
                         <svg viewBox="0 0 120 120" style="width:120px; height:120px; transform:rotate(-90deg);">
                             <circle cx="60" cy="60" r="52" fill="none"
-                                    stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+                                    stroke="var(--surface)" stroke-width="8"/>
                             <circle cx="60" cy="60" r="52" fill="none"
                                     stroke="url(#progressGrad)" stroke-width="8"
                                     stroke-linecap="round"
@@ -404,7 +404,7 @@ window.GamificationModule = (() => {
                 <!-- Weekly Consistency Chart -->
                 <div style="margin-top:24px;">
                     <h4 style="margin: 0 0 12px 0; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Consistency</h4>
-                    <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 80px; padding: 12px 8px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 80px; padding: 12px 8px; background: var(--surface-sunken); border-radius: 12px; border: 1px solid var(--surface);">
                         ${(() => {
                             const today = App.getToday();
                             const historyDays = [];
@@ -418,7 +418,7 @@ window.GamificationModule = (() => {
                             }
                             return historyDays.map(hd => `
                                 <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; width: 12%;">
-                                    <div style="width: 100%; height: 50px; display: flex; align-items: flex-end; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                                    <div style="width: 100%; height: 50px; display: flex; align-items: flex-end; background: var(--surface); border-radius: 4px; overflow: hidden;">
                                         <div style="width: 100%; height: ${hd.score}%; background: ${hd.isToday ? 'var(--primary-light)' : 'var(--primary)'}; opacity: ${hd.isToday ? '1' : '0.7'}; border-radius: 4px; transition: height 0.5s ease-out;"></div>
                                     </div>
                                     <span style="font-size: 0.65rem; color: ${hd.isToday ? 'var(--text)' : 'var(--text-muted)'}; font-weight: ${hd.isToday ? 'bold' : 'normal'};">${hd.day}</span>
@@ -436,9 +436,9 @@ window.GamificationModule = (() => {
                             const unlocked = data.achievements && data.achievements.includes(ach.id);
                             const opacity = unlocked ? '1' : '0.4';
                             const filter = unlocked ? 'none' : 'grayscale(100%)';
-                            const border = unlocked ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid rgba(255,255,255,0.05)';
-                            const bg = unlocked ? 'rgba(139, 92, 246, 0.1)' : 'rgba(0,0,0,0.2)';
-                            const color = unlocked ? '#c4b5fd' : 'var(--text-muted)';
+                            const border = unlocked ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--surface)';
+                            const bg = unlocked ? 'rgba(139, 92, 246, 0.1)' : 'var(--surface-sunken)';
+                            const color = unlocked ? 'var(--violet-text)' : 'var(--text-muted)';
                             return `
                                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; background: ${bg}; border: ${border}; border-radius: 12px; opacity: ${opacity}; filter: ${filter}; transition: all 0.3s ease; text-align: center;">
                                     <div style="width: 32px; height: 32px; color: ${color};">

@@ -39,6 +39,8 @@
     
     const t = (k) => window.i18n ? window.i18n.t(k) : k;
 
+    let timerBound = false;
+
     function generateId() {
         return Math.random().toString(36).substring(2, 9);
     }
@@ -353,7 +355,7 @@
                                 <div class="checklist-sub">${ex.sets} sets × ${ex.reps} ${ex.weight ? '| '+ex.weight : ''}</div>
                             </div>
                             <div class="weight-input-container" style="display:flex; align-items:center; gap:4px;" onclick="event.stopPropagation()">
-                                <input type="number" step="0.1" class="weight-input" placeholder="kg" style="width:50px; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:var(--text); font-size:0.85rem; outline:none;" value="${lastW}" />
+                                <input type="number" step="0.1" class="weight-input" placeholder="kg" style="width:50px; padding:6px; border-radius:6px; border:1px solid var(--glass-border); background:var(--surface-sunken); color:var(--text); font-size:0.85rem; outline:none;" value="${lastW}" />
                                 <button class="btn-save-weight" style="background:var(--primary); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:0.8rem; cursor:pointer;">Save</button>
                             </div>
                         </div>
@@ -647,7 +649,9 @@
         const ctx = canvas.getContext('2d');
         
         // CSS variable fallback colors
-        const gridColor = 'rgba(255, 255, 255, 0.1)';
+        const css = getComputedStyle(document.body);
+        const gridColor = css.getPropertyValue('--glass-border').trim();
+        const tickColor = css.getPropertyValue('--text-secondary').trim();
         const primaryColor = '#6366f1'; 
 
         // @ts-ignore (Assuming Chart is loaded via CDN)
@@ -681,8 +685,8 @@
                     }
                 },
                 scales: {
-                    x: { grid: { color: gridColor }, ticks: { color: 'rgba(255,255,255,0.7)' } },
-                    y: { grid: { color: gridColor }, ticks: { color: 'rgba(255,255,255,0.7)' } }
+                    x: { grid: { color: gridColor }, ticks: { color: tickColor } },
+                    y: { grid: { color: gridColor }, ticks: { color: tickColor } }
                 }
             }
         });
@@ -809,7 +813,10 @@
 
     function init() {
         loadData();
-        bindTimer();
+        if (!timerBound) {
+            timerBound = true;
+            bindTimer();
+        }
     }
 
     window.SportModule = { init, renderSection, renderDashboard, getCompletionData, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };

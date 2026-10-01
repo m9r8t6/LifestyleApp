@@ -20,7 +20,15 @@ window.App = (() => {
         bodycare:  'Care',
         calendar:  'Calendar',
         chat:      'Assistant',
+        todo:      'To-Do',
+        mail:      'Mail',
+        settings:  'Settings',
     };
+
+    // Sections that live behind the "More" button of the bottom bar
+    const MORE_SECTIONS = ['chat', 'todo', 'mail', 'calendar', 'settings'];
+
+    const THEME_COLORS = { dark: '#07071a', light: '#f4f6fb' };
 
     // ── Module registry (populated during init) ──────────
     const modules = {
@@ -59,13 +67,23 @@ window.App = (() => {
         // Show / hide footer container when there's no content
         footerEl.style.display = footerHTML ? '' : 'none';
 
-        overlay.classList.remove('hidden');
+        overlay.classList.remove('hidden', 'closing');
+        bodyEl.scrollTop = 0;
+        document.body.classList.add('no-scroll');
     }
 
     /** Hide the modal overlay. */
     function hideModal() {
         const overlay = document.getElementById('modal-overlay');
-        if (overlay) overlay.classList.add('hidden');
+        if (!overlay || overlay.classList.contains('hidden')) return;
+        overlay.classList.add('closing');
+        document.body.classList.remove('no-scroll');
+        setTimeout(() => {
+            if (overlay.classList.contains('closing')) {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('closing');
+            }
+        }, 180);
     }
 
     /**
@@ -148,52 +166,138 @@ window.App = (() => {
 
     // ── Navigation ───────────────────────────────────────
 
-    function _setupNavigation() {
-        const navBtns   = Array.from(document.querySelectorAll('.nav-btn[data-section], .nav-btn-today[data-section]'));
-        const sections  = document.querySelectorAll('.app-section');
-        const titleEl   = document.getElementById('header-title');
+    let activeSection = 'dashboard';
 
-        function switchTab(btn) {
-            const target = btn.dataset.section;
-
-            // Toggle active class on nav buttons
-            navBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Toggle active class on sections
-            sections.forEach(s => s.classList.remove('active'));
-            const targetSection = document.getElementById(`section-${target}`);
-            if (targetSection) targetSection.classList.add('active');
-
-            // Update header title
-            if (titleEl) titleEl.textContent = SECTION_TITLES[target] || 'LifeOS';
-
-            // Re-render the target module's section for fresh data
-            if (target === 'dashboard') {
-                refreshDashboard();
-            } else if (target === 'food' && modules.food) {
-                modules.food.renderSection();
-            } else if (target === 'sport' && modules.sport) {
-                modules.sport.renderSection();
-            } else if (target === 'bodycare' && modules.bodycare) {
-                modules.bodycare.renderSection();
-            } else if (target === 'calendar' && modules.calendar) {
-                modules.calendar.renderSection();
-            } else if (target === 'todo' && modules.todo) {
-                modules.todo.renderSection();
-            } else if (target === 'mail' && modules.mail) {
-                modules.mail.renderSection();
-            } else if (target === 'chat' && modules.chat) {
-                modules.chat.renderSection();
-            } else if (target === 'settings' && modules.settings) {
-                modules.settings.renderSection();
-            }
+    function _renderSection(target) {
+        if (target === 'dashboard') {
+            refreshDashboard();
+        } else if (modules[target] && typeof modules[target].renderSection === 'function') {
+            modules[target].renderSection();
         }
+    }
 
-        navBtns.forEach(btn => {
-            btn.addEventListener('click', () => switchTab(btn));
+    function switchTab(target) {
+        const section = document.getElementById(`section-${target}`);
+        if (!section) return;
+        activeSection = target;
+
+        document.querySelectorAll('#bottom-nav [data-section]').forEach(b => {
+            b.classList.toggle('active', b.dataset.section === target);
+        });
+        const moreBtn = document.getElementById('nav-more');
+        if (moreBtn) moreBtn.classList.toggle('active', MORE_SECTIONS.includes(target));
+        document.querySelectorAll('.more-item').forEach(b => {
+            b.classList.toggle('active', b.dataset.section === target);
         });
 
+        document.querySelectorAll('.app-section').forEach(s => s.classList.remove('active', 'entering'));
+        section.classList.add('active', 'entering');
+        // Entry animations only play when a section is opened, not on every re-render
+        clearTimeout(section._enterTimer);
+        section._enterTimer = setTimeout(() => section.classList.remove('entering'), 700);
+
+        const titleEl = document.getElementById('header-title');
+        if (titleEl) titleEl.textContent = SECTION_TITLES[target] || 'LifeOS';
+        document.body.dataset.section = target;
+
+        _renderSection(target);
+        window.scrollTo(0, 0);
+    }
+
+    function _toggleMore(open) {
+        const sheet = document.getElementById('more-sheet');
+        if (!sheet) return;
+        const show = open === undefined ? sheet.classList.contains('hidden') : open;
+        sheet.classList.toggle('hidden', !show);
+    }
+
+    function _setupNavigation() {
+        document.querySelectorAll('#bottom-nav [data-section], .more-item[data-section]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _toggleMore(false);
+                switchTab(btn.dataset.section);
+            });
+        });
+
+        const moreBtn = document.getElementById('nav-more');
+        if (moreBtn) moreBtn.addEventListener('click', () => _toggleMore());
+        const sheet = document.getElementById('more-sheet');
+        if (sheet) sheet.addEventListener('click', (e) => { if (e.target === sheet) _toggleMore(false); });
+
+        document.querySelector('#section-dashboard').classList.add('entering');
+        document.body.dataset.section = 'dashboard';
+    }
+
+    // ── Theme ────────────────────────────────────────────
+
+    /** @param {'system'|'light'|'dark'} mode */
+    function setTheme(mode) {
+        if (mode === 'system') localStorage.removeItem('lifeos_theme');
+        else localStorage.setItem('lifeos_theme', mode);
+        _applyTheme();
+    }
+
+    function getTheme() {
+        return localStorage.getItem('lifeos_theme') || 'system';
+    }
+
+    function _applyTheme() {
+        const mode = getTheme();
+        const light = mode === 'light' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+        document.documentElement.classList.toggle('light-theme', light);
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.content = light ? THEME_COLORS.light : THEME_COLORS.dark;
+    }
+
+    // ── Save status ──────────────────────────────────────
+
+    const SYNC_LABELS = {
+        idle: 'All changes saved',
+        syncing: 'Saving…',
+        pending: 'Saving…',
+        offline: 'Offline — changes are kept on this device and saved once you are back online',
+    };
+
+    function _setupSyncIndicator() {
+        const dot = document.getElementById('sync-indicator');
+        if (!dot || !window.Store) return;
+        const update = () => {
+            dot.dataset.state = window.Store.status;
+            dot.setAttribute('aria-label', SYNC_LABELS[window.Store.status]);
+        };
+        window.Store.on('status', update);
+        update();
+        dot.addEventListener('click', () => {
+            let msg = SYNC_LABELS[window.Store.status];
+            if (window.Store.status === 'idle' && window.Store.lastSync) {
+                msg += ` · ${new Date(window.Store.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            }
+            showToast(msg, window.Store.status === 'offline' ? 'error' : 'info');
+            window.Store.sync();
+        });
+    }
+
+    /** Re-read everything from storage after another device changed it. */
+    function reloadData() {
+        const busy = !document.getElementById('modal-overlay').classList.contains('hidden')
+            || !document.getElementById('timer-overlay').classList.contains('hidden')
+            || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
+        if (busy) {
+            // Do not pull the screen away from under the user; try again shortly.
+            clearTimeout(reloadData._retry);
+            reloadData._retry = setTimeout(reloadData, 4000);
+            return;
+        }
+        ['food', 'sport', 'bodycare', 'calendar', 'chat', 'todo', 'gamification'].forEach(name => {
+            const mod = modules[name];
+            if (mod && typeof mod.init === 'function') {
+                try { mod.init(); } catch (err) { console.error('[LifeOS] Module reload failed:', err); }
+            }
+        });
+        if (window.FoodModule && window.FoodModule.updateDailyTargets) window.FoodModule.updateDailyTargets();
+        if (window.i18n) window.i18n.reload();
+        _renderSection(activeSection);
+        if (activeSection !== 'dashboard') refreshDashboard();
     }
 
     // ── Modal system ─────────────────────────────────────
@@ -209,6 +313,25 @@ window.App = (() => {
         if (closeBtn) {
             closeBtn.addEventListener('click', hideModal);
         }
+
+        // Bottom sheet: swipe the header down to close
+        const header = container.querySelector('.modal-header');
+        let startY = null;
+        header.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+        header.addEventListener('touchmove', (e) => {
+            if (startY === null) return;
+            const dy = Math.max(0, e.touches[0].clientY - startY);
+            container.style.transform = `translateY(${dy}px)`;
+            container.style.transition = 'none';
+        }, { passive: true });
+        header.addEventListener('touchend', (e) => {
+            if (startY === null) return;
+            const dy = e.changedTouches[0].clientY - startY;
+            startY = null;
+            container.style.transition = '';
+            container.style.transform = '';
+            if (dy > 90) hideModal();
+        });
 
         // Click on overlay backdrop (but NOT the modal container itself)
         overlay.addEventListener('click', (e) => {
@@ -275,7 +398,7 @@ window.App = (() => {
         // Refresh dashboard
         refreshDashboard();
 
-        showToast('🌅 New day — data refreshed!', 'info');
+        showToast('New day — data refreshed', 'info');
     }
 
     // ── Service worker ───────────────────────────────────
@@ -283,6 +406,12 @@ window.App = (() => {
     function _registerServiceWorker() {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(() => {});
+            // A new version took over: reload once so old and new files are not mixed
+            let hadController = Boolean(navigator.serviceWorker.controller);
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (hadController) window.location.reload();
+                hadController = true;
+            });
         }
     }
 
@@ -320,7 +449,7 @@ window.App = (() => {
         modules.mail         = window.MailModule         || null;
         modules.gamification = window.GamificationModule || null;
         modules.settings     = window.SettingsModule     || null;
-        modules.rag          = window.RAGModule          || null;
+        modules.google       = window.GoogleModule       || null;
 
         // Initialize each module in the specified order
         const initOrder = [
@@ -333,7 +462,7 @@ window.App = (() => {
             modules.mail,
             modules.settings,
             modules.gamification,
-            modules.rag,
+            modules.google,
         ];
 
         initOrder.forEach(mod => {
@@ -347,55 +476,55 @@ window.App = (() => {
         });
     }
 
-    // ── Auto-sync to Drive ───────────────────────────────
-
-    function _setupAutoSync() {
-        const originalSetItem = localStorage.setItem;
-        let syncTimeout = null;
-
-        localStorage.setItem = function(key, value) {
-            originalSetItem.apply(this, arguments);
-            
-            // If the key is a lifeos data key and we are connected to drive
-            if (key.startsWith('lifeos_') && modules.rag && modules.rag.isReady) {
-                clearTimeout(syncTimeout);
-                // Debounce sync by 5 seconds
-                syncTimeout = setTimeout(() => {
-                    modules.rag.syncToDrive(true);
-                }, 5000);
-            }
-        };
-    }
-
     // ── Boot sequence (called on DOMContentLoaded) ───────
 
-    function _boot() {
-        // 1. Register service worker
+    async function _boot() {
+        _applyTheme();
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', _applyTheme);
         _registerServiceWorker();
-
-        // 2. Navigation
         _setupNavigation();
-
-        // 3. Modal system
         _setupModal();
-
-        // 4. Date display
         _setupDateDisplay();
-
-        // 5. Inject SVG gradient for the timer ring
         _injectTimerGradient();
+        _setupSyncIndicator();
 
-        // 6. Initialize all modules
+        // 1. Who is signed in? (shows the sign-in screen when needed)
+        const session = await window.Auth.ensureSession();
+
+        // 2. Load the saved data before any module touches it. A device that has
+        //    synced before starts from its cache if the server is slow or offline.
+        if (!session.offline) {
+            if (window.Store.hasCache) {
+                await window.Store.sync({ timeout: 3500 });
+            } else {
+                _setLoading('Loading your data…');
+                while (!await window.Store.firstSync()) {
+                    _setLoading('The server cannot be reached. Retrying…');
+                    await new Promise(r => setTimeout(r, 3000));
+                }
+            }
+        }
+        _setLoading(null);
+
+        // 3. Start the app
+        if (window.i18n) window.i18n.reload();
         _initModules();
-        
-        // 7. Setup auto-sync hook
-        _setupAutoSync();
-
-        // 8. Render dashboard widgets from each module
         refreshDashboard();
-
-        // 9. Day-change detection (visibility API)
         _setupDayChangeDetection();
+
+        // 4. Keep saving in the background
+        window.Store.on('remote', reloadData);
+        window.Store.on('auth', () => {
+            window.Auth.prompt('login', 'Please sign in again.').then(() => window.Store.sync());
+        });
+        window.Store.start();
+    }
+
+    function _setLoading(message) {
+        const el = document.getElementById('app-loading');
+        if (!el) return;
+        el.classList.toggle('hidden', !message);
+        if (message) el.querySelector('.app-loading-text').textContent = message;
     }
 
     // ── DOMContentLoaded listener ────────────────────────
@@ -417,5 +546,9 @@ window.App = (() => {
         getDayOfWeek,
         refreshDashboard,
         onCompletionChange,
+        switchTab,
+        setTheme,
+        getTheme,
+        reloadData,
     };
 })();

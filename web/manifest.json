@@ -2,11 +2,13 @@
     "name": "LifeOS — Your Daily Lifestyle Hub",
     "short_name": "LifeOS",
     "description": "Personal lifestyle management for nutrition, fitness, and self-care",
-    "start_url": "./index.html",
+    "id": "/",
+    "start_url": "./",
+    "scope": "./",
     "display": "standalone",
     "orientation": "portrait",
-    "background_color": "#0a0a1a",
-    "theme_color": "#0a0a1a",
+    "background_color": "#07071a",
+    "theme_color": "#07071a",
     "categories": ["health", "fitness", "lifestyle"],
     "icons": [
         {
