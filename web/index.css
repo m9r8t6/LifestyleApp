@@ -850,6 +850,8 @@ code { font-size: 0.85em; background: var(--surface); padding: 1px 5px; border-r
     box-shadow: var(--shadow-md);
     animation: fadeSlideIn var(--dur-slow) var(--ease);
 }
+/* No bottom bar on the sign-in screen: sit at the very bottom, clear of the button */
+body:has(#auth-screen:not(.hidden)) .install-banner { bottom: calc(var(--safe-bottom) + 12px); }
 .install-banner img { border-radius: 11px; flex-shrink: 0; }
 .install-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.35; }
 .install-text strong { font-size: 0.95rem; color: var(--text); }
