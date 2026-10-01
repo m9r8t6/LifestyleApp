@@ -232,8 +232,12 @@ window.App = (() => {
         if (titleEl) titleEl.textContent = SECTION_TITLES[target] || 'LifeOS';
         document.body.dataset.section = target;
 
+        // Let the module reset what should start fresh each time it is opened
+        if (modules[target] && typeof modules[target].onShow === 'function') modules[target].onShow();
         _renderSection(target);
-        window.scrollTo(0, 0);
+        // A conversation is read from the bottom; everything else starts at the top
+        if (target === 'chat') window.scrollTo(0, document.body.scrollHeight);
+        else window.scrollTo(0, 0);
     }
 
     function _toggleMore(open) {

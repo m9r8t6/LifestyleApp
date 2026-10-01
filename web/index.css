@@ -1074,6 +1074,8 @@ input[type="checkbox"] { accent-color: var(--primary); }
 
 /* ─── Chat ─── */
 #section-chat { padding-bottom: 150px; }
+/* Messages sit at the bottom, right above the input, also when there are only a few */
+#section-chat.active { display: flex; flex-direction: column; justify-content: flex-end; min-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--nav-h) - var(--safe-bottom) - 28px); }
 .chat-row { display: flex; margin-bottom: 10px; }
 .chat-row.user { justify-content: flex-end; }
 .chat-bubble { max-width: 86%; padding: 10px 14px; border-radius: 18px; font-size: 0.94rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }

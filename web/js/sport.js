@@ -865,6 +865,11 @@
         };
     }
 
-    window.SportModule = { init, renderSection, renderDashboard, getCompletionData, getTodayItems, toggleExercise, getContextForAI, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };
+    /** Opening the section always starts on today's weekday in the planner. */
+    function onShow() {
+        selectedDayIndex = window.App.getDayOfWeek();
+    }
+
+    window.SportModule = { init, onShow, renderSection, renderDashboard, getCompletionData, getTodayItems, toggleExercise, getContextForAI, updateChartSettings, setChartTimeframe, saveBodyWeightEntry };
 
 })();
