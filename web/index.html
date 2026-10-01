@@ -278,6 +278,17 @@
         </div>
     </div>
 
+    <!-- ===== INSTALL PROMPT ===== -->
+    <div id="install-banner" class="install-banner hidden" role="dialog" aria-label="Install LifeOS">
+        <img src="icon-192.png" alt="" width="44" height="44">
+        <div class="install-text">
+            <strong>Install LifeOS</strong>
+            <span id="install-hint">Add it to your home screen for full screen use and notifications.</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="install-accept">Install</button>
+        <button type="button" class="install-close" id="install-dismiss" aria-label="Not now">&times;</button>
+    </div>
+
     <!-- ===== UNDO BAR (mail waiting to be sent) ===== -->
     <div id="undo-bar" class="undo-bar hidden" role="status"></div>
 
@@ -285,6 +296,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- ===== SCRIPTS ===== -->
+    <script src="js/install.js"></script>
     <script src="js/store.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/i18n.js"></script>

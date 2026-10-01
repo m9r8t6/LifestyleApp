@@ -180,6 +180,7 @@
                     Everything is saved on your server automatically${lastSync ? ` (last saved ${lastSync})` : ''}.
                 </p>
                 <div class="settings-actions">
+                    ${window.InstallPrompt && window.InstallPrompt.available ? '<button class="btn btn-ghost" id="btn-install-app">Install app</button>' : ''}
                     <button class="btn btn-ghost" id="btn-export-data">Download backup</button>
                     <button class="btn btn-ghost" id="btn-import-data">Import backup file</button>
                     <button class="btn btn-ghost" id="btn-change-password">Change password</button>
@@ -352,6 +353,10 @@
         refreshPushStatus();
 
         // ── Account & data ──
+        document.getElementById('btn-install-app')?.addEventListener('click', async () => {
+            await window.InstallPrompt.trigger();
+            renderSection();
+        });
         document.getElementById('btn-export-data')?.addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(window.Store.exportData(), null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
