@@ -192,7 +192,7 @@ test('google connection is held by the server', async () => {
     await phone('POST', '/api/auth/login', { username: 'tester', password: 'correct horse battery' });
 
     let r = await phone('GET', '/api/google/status');
-    assert.deepEqual(r.body, { configured: true, connected: false, clientId: 'test-client.apps.googleusercontent.com' });
+    assert.deepEqual(r.body, { configured: true, connected: false });
     r = await phone('GET', '/api/google/token');
     assert.equal(r.status, 404);
 

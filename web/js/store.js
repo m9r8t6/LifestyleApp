@@ -16,8 +16,6 @@ window.Store = (() => {
         'lifeos_hf_token',
         'lifeos_google_access_token',
         'lifeos_google_token_expiry',
-        'lifeos_google_auto_connect',
-        'lifeos_drive_auto_connect',
         'lifeos_notified_events',
         'lifeos_theme',
     ]);
@@ -199,7 +197,7 @@ window.Store = (() => {
 
     function wipeLocal() {
         syncedKeys().forEach(key => rawRemove.call(localStorage, key));
-        ['lifeos_google_access_token', 'lifeos_google_token_expiry', 'lifeos_google_auto_connect', 'lifeos_notified_events']
+        ['lifeos_notified_events']
             .forEach(key => rawRemove.call(localStorage, key));
         meta = { user: null, rev: 0, revs: {}, dirty: {}, lastSync: 0 };
         saveMeta();
@@ -214,7 +212,8 @@ window.Store = (() => {
             // Old secrets have no place in the new setup.
             rawRemove.call(localStorage, 'lifeos_deepseek_key');
             rawRemove.call(localStorage, 'lifeos_hf_token');
-            rawRemove.call(localStorage, 'lifeos_drive_auto_connect');
+            ['lifeos_drive_auto_connect', 'lifeos_google_access_token', 'lifeos_google_token_expiry', 'lifeos_google_client_id']
+                .forEach(key => rawRemove.call(localStorage, key));
         }
         meta.user = username;
         saveMeta();

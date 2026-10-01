@@ -111,7 +111,7 @@ router.get('/status', auth.requireUser, wrap(async (req, res) => {
         const { rows } = await pool.query('SELECT 1 FROM google_tokens WHERE user_id = $1', [req.user.id]);
         connected = rows.length > 0;
     }
-    res.json({ configured, connected, clientId: CLIENT_ID || null });
+    res.json({ configured, connected });
 }));
 
 // Step 1: send the browser to Google's consent page.

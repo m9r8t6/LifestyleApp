@@ -22,7 +22,7 @@
         const theme = window.App ? window.App.getTheme() : 'system';
         const store = window.Store;
         const googleReady = Boolean(window.GoogleModule && window.GoogleModule.isReady);
-        const serverGoogle = Boolean(window.GoogleModule && window.GoogleModule.serverManaged);
+        const googleConfigured = Boolean(window.GoogleModule && window.GoogleModule.configured);
         const lastSync = store && store.lastSync
             ? new Date(store.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : '';
@@ -80,24 +80,20 @@
                 <div class="settings-actions">
                     <button class="btn btn-ghost" id="btn-export-data">Download backup</button>
                     <button class="btn btn-ghost" id="btn-import-data">Import backup file</button>
-                    <button class="btn btn-ghost" id="btn-import-drive">Import from Google Drive</button>
                     <button class="btn btn-ghost" id="btn-change-password">Change password</button>
                     <button class="btn btn-ghost" id="btn-logout" style="color:var(--error);">Sign out</button>
                 </div>
                 <input type="file" id="input-import-file" accept="application/json,.json" style="display:none;">
-                <p class="form-hint" style="margin-top:12px;">"Import from Google Drive" brings over the data the previous version of the app stored in your Drive.</p>
+                <p class="form-hint" style="margin-top:12px;">To bring over data from the previous version, download <code>lifeos_backup.json</code> from the <code>LifeOS_Data</code> folder in your Google Drive and import it here.</p>
             </div>
 
             <div class="glass-card stagger-item" style="margin-top: 24px;">
                 <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Google (Mail &amp; Calendar)</h3>
-                ${serverGoogle ? `
                 <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 16px;">
-                    ${googleReady ? 'Connected. The server keeps the connection, so you do not have to sign in again.' : 'Approve access once; the server keeps the connection for all your devices.'}
-                </p>` : `
-                <div class="form-group" style="margin-top: 12px;">
-                    <label class="form-label">Google Cloud Client ID</label>
-                    <input type="text" id="input-google-client" class="form-input" value="${escapeHtml(localStorage.getItem('lifeos_google_client_id') || '')}" placeholder="...apps.googleusercontent.com" autocapitalize="off" autocorrect="off" spellcheck="false">
-                </div>`}
+                    ${!googleConfigured ? 'Not set up on the server yet.'
+                        : googleReady ? 'Connected. The server keeps the connection, so you do not have to sign in again.'
+                        : 'Approve access once; the server keeps the connection for all your devices.'}
+                </p>
                 <div class="settings-actions">
                     <button class="btn btn-ghost" id="btn-auth-google" style="color:var(--accent);">${googleReady ? 'Google connected ✓' : 'Connect Google'}</button>
                     ${googleReady ? '<button class="btn btn-ghost" id="btn-disconnect-google">Disconnect</button>' : ''}
@@ -227,11 +223,6 @@
             renderSection(); 
         });
 
-        document.getElementById('input-google-client')?.addEventListener('change', (e) => {
-            localStorage.setItem('lifeos_google_client_id', e.target.value.trim());
-            if(window.App) window.App.showToast('Google Client ID saved', 'success');
-        });
-
         document.getElementById('btn-auth-google')?.addEventListener('click', () => {
             if (window.GoogleModule) window.GoogleModule.authGoogle();
         });
@@ -270,17 +261,6 @@
                 await runImport(JSON.parse(await file.text()), `"${file.name}"`);
             } catch (err) {
                 window.App.showToast('This file could not be read as a backup.', 'error');
-            }
-        });
-
-        document.getElementById('btn-import-drive')?.addEventListener('click', async () => {
-            try {
-                window.App.showToast('Looking for your Drive backup…', 'info');
-                const backup = await window.GoogleModule.fetchDriveBackup();
-                const when = new Date(backup.modifiedTime).toLocaleString();
-                await runImport(backup.data, `the Drive backup from ${when}`);
-            } catch (err) {
-                window.App.showToast(err.message, 'error');
             }
         });
 

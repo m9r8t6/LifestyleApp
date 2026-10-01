@@ -54,7 +54,7 @@ LIFESTYLE_GOOGLE_CLIENT_SECRET=...
 ```
 
 The Google OAuth client needs `https://<your hostname>/api/google/callback` as an authorised redirect URI.
-Without these values the app falls back to Google's sign-in inside the browser (hourly tokens).
+Without these values Mail and Calendar stay switched off.
 
 ## Local development
 
@@ -67,5 +67,5 @@ Note: `npm test` empties the tables of the database it points at.
 
 ## Moving data from the old version
 
-Settings → Account & Data → "Import from Google Drive" loads the `lifeos_backup.json` the old
-version stored in Drive. "Import backup file" does the same with a downloaded copy of that file.
+Download `lifeos_backup.json` from the `LifeOS_Data` folder in Google Drive, then use
+Settings → Account & Data → "Import backup file".
