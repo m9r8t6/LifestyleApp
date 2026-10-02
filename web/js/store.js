@@ -252,7 +252,7 @@ window.Store = (() => {
     async function logout() {
         await sync({ timeout: 8000 });
         const unsaved = Object.keys(meta.dirty).length;
-        if (unsaved && !confirm('Some changes could not be saved to the server yet and will be lost. Sign out anyway?')) return false;
+        if (unsaved && !await window.App.confirm('Some changes could not be saved to the server yet and will be lost. Sign out anyway?', { okLabel: 'Sign out', danger: true })) return false;
         try { await api('/api/auth/logout', { method: 'POST', body: {} }); } catch (e) {}
         wipeLocal();
         return true;

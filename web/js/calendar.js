@@ -400,8 +400,8 @@
         window.App.showToast('Notes saved', 'success');
     }
 
-    function deleteEvent(id) {
-        if (!confirm('Delete this event?')) return;
+    async function deleteEvent(id) {
+        if (!await window.App.confirm('Delete this event?', { okLabel: 'Delete', danger: true })) return;
         events = events.filter(e => e.id !== id);
         saveEvents();
         window.App.hideModal();

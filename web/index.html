@@ -278,6 +278,35 @@
         </div>
     </div>
 
+    <!-- ===== BARCODE SCANNER ===== -->
+    <div id="scanner-overlay" class="scanner-overlay hidden" role="dialog" aria-label="Scan a barcode">
+        <div class="scanner-box">
+            <h2>Scan a product</h2>
+            <div id="scanner-frame" class="scanner-frame">
+                <video id="scanner-video" playsinline muted></video>
+                <span class="scanner-line"></span>
+            </div>
+            <p id="scanner-hint" class="form-hint"></p>
+            <div class="scanner-manual">
+                <input type="text" id="scanner-code" class="form-input" inputmode="numeric" autocomplete="off" placeholder="or type the barcode number">
+                <button type="button" class="btn btn-primary" id="scanner-use">Look up</button>
+            </div>
+            <button type="button" class="btn btn-ghost" id="scanner-cancel" style="width:100%;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ===== CONFIRM DIALOG ===== -->
+    <div id="confirm-overlay" class="confirm-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-message">
+        <div class="confirm-box">
+            <h2 id="confirm-title"></h2>
+            <p id="confirm-message"></p>
+            <div class="confirm-actions">
+                <button type="button" class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== INSTALL PROMPT ===== -->
     <div id="install-banner" class="install-banner hidden" role="dialog" aria-label="Install LifeOS">
         <img src="icon-192.png" alt="" width="44" height="44">
@@ -300,6 +329,7 @@
     <script src="js/store.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/i18n.js"></script>
+    <script src="js/scanner.js"></script>
     <script src="js/food.js"></script>
     <script src="js/sport.js"></script>
     <script src="js/bodycare.js"></script>

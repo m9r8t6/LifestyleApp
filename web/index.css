@@ -832,6 +832,53 @@ code { font-size: 0.85em; background: var(--surface); padding: 1px 5px; border-r
 .mail-send-switch { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--glass-border); font-size: 0.84rem; color: var(--text-secondary); }
 .mail-answered { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-light); background: var(--accent-soft); padding: 1px 7px; border-radius: var(--r-full); }
 
+.scanner-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;   /* above the recipe form */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: var(--overlay-bg);
+    animation: fadeIn var(--dur) var(--ease);
+}
+.scanner-box { width: 100%; max-width: 400px; padding: 20px; background: var(--bg-secondary); border-radius: var(--r-xl); box-shadow: var(--shadow-md); display: flex; flex-direction: column; gap: 12px; }
+.scanner-frame { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--r-lg); overflow: hidden; background: #1d1a16; }
+.scanner-frame video { width: 100%; height: 100%; object-fit: cover; }
+.scanner-line { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px; background: var(--primary); box-shadow: 0 0 0 1px rgba(255, 253, 248, 0.5); animation: softPulse 1.2s ease-in-out infinite; }
+.scanner-manual { display: flex; gap: 8px; }
+.scanner-manual .form-input { flex: 1; min-width: 0; }
+.scan-result { margin: 8px 0; border-left: 4px solid var(--accent); }
+.scan-result .scan-values { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 10px; }
+.label-badge { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-light); background: var(--accent-soft); padding: 1px 7px; border-radius: var(--r-full); margin-left: 6px; }
+
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--overlay-bg);
+    animation: fadeIn var(--dur) var(--ease);
+}
+.confirm-box {
+    width: 100%;
+    max-width: 360px;
+    padding: 22px 20px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-md);
+    animation: fadeSlideIn var(--dur) var(--ease);
+}
+.confirm-box h2 { font-size: 1.25rem; margin-bottom: 8px; }
+.confirm-box p { font-size: 0.95rem; line-height: 1.5; color: var(--text); white-space: pre-line; }
+.confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
+.confirm-actions .btn { flex: 1; }
+.btn-danger-solid { background: var(--error); color: #fffdf8; }
+
 .install-banner {
     position: fixed;
     left: 12px;

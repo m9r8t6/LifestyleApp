@@ -603,14 +603,14 @@
         document.getElementById('btn-recommend-recipe')?.addEventListener('click', recommendNewRecipe);
     }
 
-    function deleteRecipe(id) {
+    async function deleteRecipe(id) {
         const recipe = recipes.find(r => r.id === id);
         if (!recipe) return;
         if (recipes.length <= 3) {
             window.App.showToast('Keep at least three recipes so a day can be planned.', 'error');
             return;
         }
-        if (!confirm(`Delete "${recipe.name}"?`)) return;
+        if (!await window.App.confirm(`Delete "${recipe.name}"?`, { okLabel: 'Delete', danger: true })) return;
         recipes = recipes.filter(r => r.id !== id);
         saveRecipes();
         // Days that used this recipe get a replacement
@@ -654,7 +654,14 @@
                         <input type="text" id="ing-name" class="form-input" placeholder="Name (e.g. Tofu)" style="font-size: 0.8rem;">
                     </div>
                 </div>
-                <button type="button" id="btn-add-ing" class="btn btn-sm btn-ghost" style="width: 100%; border: 1px dashed var(--glass-border);">+ Add Ingredient</button>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" id="btn-add-ing" class="btn btn-sm btn-ghost" style="flex:1; border-style:dashed;">+ Add ingredient</button>
+                    <button type="button" id="btn-scan-ing" class="btn btn-sm btn-ghost" style="flex:1;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6v12M8 6v12M11 6v12M15 6v12M18 6v12M20 6v12"/></svg>
+                        Scan barcode
+                    </button>
+                </div>
+                <div id="scan-result"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Instructions</label>
@@ -749,8 +756,8 @@
             }
             list.innerHTML = window.currentRecipeIngredients.map((i, idx) => `
                 <div style="display:flex; justify-content:space-between; margin-bottom: 4px; padding: 4px 8px; background: var(--surface); border-radius: 4px;">
-                    <span>${i.amount} ${esc(i.unit)} ${esc(i.name)}</span>
-                    <span style="color:var(--error); cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.currentRecipeIngredients.splice(${idx}, 1); window.renderTempIngredients();">×</span>
+                    <span>${i.amount} ${esc(i.unit)} ${esc(i.name)}${i.per100g ? '<span class="label-badge">label</span>' : ''}</span>
+                    <span style="color:var(--error); cursor:pointer; font-weight:bold; padding:0 4px;" onclick="window.currentRecipeIngredients.splice(${idx}, 1); window.renderTempIngredients(); window.applyLabelTotals && window.applyLabelTotals();">×</span>
                 </div>
             `).join('');
         };
@@ -774,6 +781,80 @@
             document.getElementById('ing-amount').focus();
         });
 
+        const FIELD_IDS = {
+            calories: 'recipe-cal', protein: 'recipe-pro', fiber: 'recipe-fiber', zinc: 'recipe-zinc', omega3: 'recipe-omega',
+            iron: 'recipe-iron', vitaminB12: 'recipe-b12', vitaminA: 'recipe-vita', vitaminC: 'recipe-vitc',
+            vitaminD: 'recipe-vitd', vitaminE: 'recipe-vite', biotin: 'recipe-biotin', magnesium: 'recipe-mag'
+        };
+        const setFields = (totals, onlyKeys) => {
+            Object.entries(FIELD_IDS).forEach(([key, id]) => {
+                if (onlyKeys && !onlyKeys.has(key)) return;
+                const input = document.getElementById(id);
+                const value = Number(totals[key]);
+                if (input && Number.isFinite(value) && value >= 0) input.value = Math.round(value * 10) / 10;
+            });
+        };
+        /** What a scanned product contributes, from the values printed on its package. */
+        const labelShare = (ing) => {
+            const share = {};
+            if (!ing.per100g) return share;
+            Object.entries(ing.per100g).forEach(([key, per100]) => { share[key] = per100 * ing.amount / 100; });
+            return share;
+        };
+        // When every ingredient was scanned, the label values alone give the totals they cover
+        window.applyLabelTotals = () => {
+            const list = window.currentRecipeIngredients;
+            if (!document.getElementById('recipe-cal') || list.length === 0 || !list.every(i => i.per100g)) return;
+            const totals = {};
+            const keys = new Set();
+            list.forEach(ing => Object.entries(labelShare(ing)).forEach(([key, value]) => { totals[key] = (totals[key] || 0) + value; keys.add(key); }));
+            setFields(totals, keys);
+        };
+
+        document.getElementById('btn-scan-ing').addEventListener('click', async () => {
+            const code = await window.Scanner.scan();
+            if (!code) return;
+            const box = document.getElementById('scan-result');
+            box.innerHTML = `<div class="glass-card-sm scan-result"><span class="form-hint">Looking up ${esc(code)}…</span></div>`;
+            let product;
+            try {
+                product = (await window.Store.api(`/api/food/barcode/${code}`, { timeout: 20000 })).product;
+            } catch (err) {
+                const text = err.message === 'product_not_found'
+                    ? 'This product is not in the database (or has no nutrition values). Add it by hand.'
+                    : 'The product database could not be reached. Try again or add it by hand.';
+                box.innerHTML = `<div class="glass-card-sm scan-result"><span class="form-hint">${text}</span></div>`;
+                return;
+            }
+            const v = product.per100g;
+            const shown = [
+                v.calories !== undefined ? `${v.calories} kcal` : '',
+                v.protein !== undefined ? `${v.protein} g protein` : '',
+                v.fiber !== undefined ? `${v.fiber} g fiber` : '',
+            ].filter(Boolean).join(' · ');
+            box.innerHTML = `
+                <div class="glass-card-sm scan-result">
+                    <strong>${esc(product.name)}</strong>${product.brand ? ` <span class="form-hint">${esc(product.brand)}</span>` : ''}
+                    <div class="scan-values">per 100 g: ${esc(shown || 'no calorie data')}${product.quantity ? ` · package ${esc(product.quantity)}` : ''}</div>
+                    <div style="display:flex; gap:8px;">
+                        <input type="number" inputmode="decimal" step="any" id="scan-amount" class="form-input" placeholder="Amount used in g" style="flex:1; min-width:0;">
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-scan-add">Add</button>
+                    </div>
+                </div>`;
+            document.getElementById('scan-amount').focus();
+            document.getElementById('btn-scan-add').addEventListener('click', () => {
+                const grams = parseFloat(document.getElementById('scan-amount').value);
+                if (!(grams > 0)) return window.App.showToast('Enter how many grams you use.', 'error');
+                window.currentRecipeIngredients.push({ amount: grams, unit: 'g', name: product.name, per100g: product.per100g });
+                box.innerHTML = '';
+                window.renderTempIngredients();
+                window.applyLabelTotals();
+                if (!window.currentRecipeIngredients.every(i => i.per100g)) {
+                    window.App.showToast('Added. Tap "Estimate nutrition" to combine label values with the other ingredients.', 'info');
+                }
+            });
+        });
+
         document.getElementById('btn-calc-macros').addEventListener('click', async () => {
             
             if (window.currentRecipeIngredients.length === 0) {
@@ -781,7 +862,8 @@
                 return;
             }
 
-            const ingredientsText = window.currentRecipeIngredients.map(i => `${i.amount} ${i.unit} ${i.name}`).join('\n');
+            const list = window.currentRecipeIngredients;
+            const ingredientsText = list.map((i, n) => `${n + 1}. ${i.amount} ${i.unit} ${i.name}`).join('\n');
 
             const btn = document.getElementById('btn-calc-macros');
             const originalText = btn.innerHTML;
@@ -792,32 +874,25 @@
                 const answer = await window.App.ai([
                     {
                         role: 'system',
-                        content: "You are a nutrition expert. 1) Estimate the total nutritional values of the provided ingredients (the whole list together is one serving). 2) Standardize the ingredient names into a common English name (e.g., 'tomate' -> 'Tomato') so they group cleanly on a grocery list; keep amounts and units. Return ONLY a valid JSON object with numerical keys: calories, protein, fiber, zinc, omega3, iron, vitaminB12, vitaminA, vitaminC, vitaminD, vitaminE, biotin, magnesium (units: kcal, g, g, mg, mg, mg, mcg, mcg, mg, mcg, mg, mcg, mg) AND an array key 'standardizedIngredients' containing objects exactly like {\"amount\": number, \"unit\": string, \"name\": string}."
+                        content: "You are a nutrition expert. For EACH numbered ingredient, estimate the nutritional values of exactly the given amount, and standardize its name into a common English name (e.g. 'tomate' -> 'Tomato') so it groups cleanly on a grocery list. Return ONLY a JSON object: {\"ingredients\": [{\"n\": 1, \"name\": string, \"nutrients\": {\"calories\": number, \"protein\": number, \"fiber\": number, \"zinc\": number, \"omega3\": number, \"iron\": number, \"vitaminB12\": number, \"vitaminA\": number, \"vitaminC\": number, \"vitaminD\": number, \"vitaminE\": number, \"biotin\": number, \"magnesium\": number}}]} with one entry per ingredient, in the same order. Units: kcal, g, g, mg, mg, mg, mcg, mcg, mg, mcg, mg, mcg, mg."
                     },
                     { role: 'user', content: ingredientsText }
                 ], { temperature: 0.1, json: true });
                 const result = window.App.parseAIJson(answer);
+                const estimates = Array.isArray(result.ingredients) ? result.ingredients : [];
+                if (estimates.length === 0) throw new Error('The estimate was empty.');
 
-                const fields = {
-                    calories: 'recipe-cal', protein: 'recipe-pro', fiber: 'recipe-fiber', zinc: 'recipe-zinc', omega3: 'recipe-omega',
-                    iron: 'recipe-iron', vitaminB12: 'recipe-b12', vitaminA: 'recipe-vita', vitaminC: 'recipe-vitc',
-                    vitaminD: 'recipe-vitd', vitaminE: 'recipe-vite', biotin: 'recipe-biotin', magnesium: 'recipe-mag'
-                };
-                Object.entries(fields).forEach(([key, id]) => {
-                    const value = Number(result[key]);
-                    const input = document.getElementById(id);
-                    if (input && Number.isFinite(value) && value >= 0) input.value = Math.round(value * 10) / 10;
+                // Add everything up; values printed on a scanned package replace the estimate
+                const totals = {};
+                list.forEach((ing, idx) => {
+                    const estimate = estimates.find(e => Number(e.n) === idx + 1) || estimates[idx] || {};
+                    const values = { ...(estimate.nutrients || {}), ...labelShare(ing) };
+                    Object.keys(FIELD_IDS).forEach(key => { totals[key] = (totals[key] || 0) + num(values[key]); });
+                    const cleanName = String(estimate.name || '').trim();
+                    if (!ing.per100g && cleanName) ing.name = cleanName;
                 });
-
-                if (Array.isArray(result.standardizedIngredients)) {
-                    const cleaned = result.standardizedIngredients
-                        .filter(i => i && String(i.name || '').trim())
-                        .map(i => ({ amount: num(i.amount), unit: String(i.unit || 'x'), name: String(i.name).trim() }));
-                    if (cleaned.length) {
-                        window.currentRecipeIngredients = cleaned;
-                        window.renderTempIngredients();
-                    }
-                }
+                setFields(totals);
+                window.renderTempIngredients();
                 window.App.showToast('Nutrition estimated', 'success');
             } catch (err) {
                 console.error('AI Calculation Error:', err);
@@ -858,6 +933,7 @@
             }
 
             const ingredients = [...window.currentRecipeIngredients];
+            window.applyLabelTotals = null;
 
             recipes.push(normalizeRecipe({
                 id: 'c_' + Date.now().toString(36),

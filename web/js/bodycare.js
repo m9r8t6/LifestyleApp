@@ -436,8 +436,8 @@
       window.App.refreshDashboard();
     });
 
-    document.getElementById('bc-form-delete')?.addEventListener('click', () => {
-      if (!confirm(`Delete "${item.name}"?`)) return;
+    document.getElementById('bc-form-delete')?.addEventListener('click', async () => {
+      if (!await window.App.confirm(`Delete "${item.name}"?`, { okLabel: 'Delete', danger: true })) return;
       saveItems(loadItems().filter(i => i.id !== item.id));
       window.App.hideModal();
       renderSection();

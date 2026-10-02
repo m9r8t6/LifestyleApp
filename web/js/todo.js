@@ -118,8 +118,8 @@
         }
     }
 
-    function deleteTask(id) {
-        if (!confirm('Delete this task?')) return;
+    async function deleteTask(id) {
+        if (!await window.App.confirm('Delete this task?', { okLabel: 'Delete', danger: true })) return;
         todos = todos.filter(t => t.id !== id);
         saveTodos();
         renderSection();

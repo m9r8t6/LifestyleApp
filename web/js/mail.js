@@ -19,6 +19,8 @@
     const GMAIL_LIMIT = 30;
     const GMAIL_SEND_KEY = 'lifeos_mail_gmail_send';   // 'yes' once the user allowed sending from Gmail
     const UNDO_SECONDS = 10;
+    const TONE_KEY = 'lifeos_mail_tone';          // 'casual' | 'business', remembered
+    const NAME_KEY = 'lifeos_mail_signature';     // the name replies are signed with
 
     const TABS = [
         { key: 'important', label: 'Important' },
@@ -448,7 +450,25 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
     function renderAiOut(msg) {
         const out = document.getElementById('mail-ai-out');
         if (!out) return;
+        const tone = localStorage.getItem(TONE_KEY) === 'casual' ? 'casual' : 'business';
         out.innerHTML = `
+            ${msg.draftOptions && msg.aiDraft === undefined ? `
+                <div class="glass-card-sm mail-summary mail-compose">
+                    <h4 class="detail-heading">Reply with AI</h4>
+                    <div class="time-toggle" id="mail-tone" style="margin-bottom:10px;">
+                        <button type="button" class="time-toggle-btn ${tone === 'casual' ? 'active' : ''}" data-tone="casual">Casual</button>
+                        <button type="button" class="time-toggle-btn ${tone === 'business' ? 'active' : ''}" data-tone="business">Business</button>
+                    </div>
+                    <p class="form-hint" id="mail-tone-hint" style="margin:0 0 10px;"></p>
+                    <label class="form-label" for="mail-pre-inst">What should the reply say? (optional)</label>
+                    <textarea class="form-input" id="mail-pre-inst" style="min-height:76px;" placeholder="e.g. Thursday 14:00 works, ask for the address"></textarea>
+                    <label class="form-label" for="mail-sign-name" style="margin-top:10px;">Sign as</label>
+                    <input type="text" id="mail-sign-name" class="form-input" value="${esc(localStorage.getItem(NAME_KEY) || '')}" placeholder="Your name">
+                    <div class="mail-send-row">
+                        <button class="btn btn-sm btn-ghost" id="btn-mail-opt-cancel">Cancel</button>
+                        <button class="btn btn-primary" id="btn-mail-generate">Write reply</button>
+                    </div>
+                </div>` : ''}
             ${msg.aiSummary ? `<div class="glass-card-sm mail-summary"><h4 class="detail-heading">Summary</h4><div class="detail-text">${esc(msg.aiSummary)}</div></div>` : ''}
             ${msg.aiDraft !== undefined ? `
                 <div class="glass-card-sm mail-summary mail-compose">
@@ -469,13 +489,38 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
                     </div>
                 </div>` : ''}
         `;
+        // Options panel
+        const toneHint = () => {
+            const hint = document.getElementById('mail-tone-hint');
+            if (!hint) return;
+            hint.textContent = (localStorage.getItem(TONE_KEY) === 'casual')
+                ? 'Relaxed and short: "Hi …", first-name terms, "LG" / "Best".'
+                : 'Polite and formal: "Sehr geehrte …" / "Dear …", formal address, "Mit freundlichen Grüßen" / "Kind regards".';
+        };
+        toneHint();
+        document.querySelectorAll('#mail-tone [data-tone]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                localStorage.setItem(TONE_KEY, btn.dataset.tone);
+                document.querySelectorAll('#mail-tone [data-tone]').forEach(b => b.classList.toggle('active', b === btn));
+                toneHint();
+            });
+        });
+        document.getElementById('btn-mail-opt-cancel')?.addEventListener('click', () => { msg.draftOptions = false; renderAiOut(msg); });
+        document.getElementById('btn-mail-generate')?.addEventListener('click', () => {
+            localStorage.setItem(NAME_KEY, document.getElementById('mail-sign-name').value.trim());
+            draftReply(msg, document.getElementById('mail-pre-inst').value.trim(), 'btn-mail-generate');
+        });
+
         const keepDraft = () => {
             const area = document.getElementById('mail-draft');
             if (area) { msg.aiDraft = area.value; msg.draftTo = document.getElementById('mail-draft-to').value.trim(); }
         };
         document.getElementById('mail-draft')?.addEventListener('input', keepDraft);
         document.getElementById('mail-draft-to')?.addEventListener('input', keepDraft);
-        document.getElementById('btn-mail-redraft')?.addEventListener('click', () => { keepDraft(); draftReply(msg); });
+        document.getElementById('btn-mail-redraft')?.addEventListener('click', () => {
+            keepDraft();
+            draftReply(msg, (document.getElementById('mail-draft-inst')?.value || '').trim(), 'btn-mail-redraft');
+        });
         document.getElementById('btn-mail-send')?.addEventListener('click', () => { keepDraft(); startSend(msg); });
         document.getElementById('btn-mail-copy')?.addEventListener('click', async () => {
             const area = document.getElementById('mail-draft');
@@ -505,7 +550,13 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         window.App.showModal(msg.subject, readerHtml(msg), '');
         const bind = () => {
             document.getElementById('btn-mail-sum')?.addEventListener('click', () => summarize(msg));
-            document.getElementById('btn-mail-reply')?.addEventListener('click', () => draftReply(msg));
+            document.getElementById('btn-mail-reply')?.addEventListener('click', () => {
+                // First choose the tone and say what the reply should contain; the AI writes after that
+                if (msg.aiDraft !== undefined) return document.getElementById('mail-draft')?.focus();
+                msg.draftOptions = true;
+                renderAiOut(msg);
+                document.getElementById('mail-pre-inst')?.focus();
+            });
             document.getElementById('btn-mail-write')?.addEventListener('click', () => {
                 if (msg.aiDraft === undefined) msg.aiDraft = '';
                 renderAiOut(msg);
@@ -556,15 +607,29 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         });
     }
 
-    function draftReply(msg) {
-        const instructions = (document.getElementById('mail-draft-inst')?.value || '').trim();
+    const TONE_RULES = {
+        casual: 'Tone: casual and friendly, like writing to someone you know. Use the informal address (in German: "du"). Open with "Hi <first name>," or "Hallo <first name>," and close with a short sign-off such as "LG" or "Viele Grüße" (English: "Best" or "Cheers"). Keep it short, no stiff phrases.',
+        business: 'Tone: professional and polite. Use the formal address (in German: "Sie"). Open with "Sehr geehrte Frau/Sehr geehrter Herr <last name>," or "Guten Tag <name>," (English: "Dear <name>,") and close with "Mit freundlichen Grüßen" (English: "Kind regards"). Clear and concise.',
+    };
+
+    function draftReply(msg, instructions, buttonId) {
         const current = msg.aiDraft || '';
-        return withButton(msg.aiDraft === undefined ? 'btn-mail-reply' : 'btn-mail-redraft', 'Writing…', async () => {
+        const tone = localStorage.getItem(TONE_KEY) === 'casual' ? 'casual' : 'business';
+        const name = (localStorage.getItem(NAME_KEY) || '').trim();
+        return withButton(buttonId, 'Writing…', async () => {
             await ensureBody(msg);
             msg.aiDraft = await window.App.ai([
-                { role: 'system', content: 'Write a polite, concise reply to the email below, in the language of the email. If information is needed that you do not have, put a clear placeholder in square brackets. Output only the reply text, no subject line, no Markdown.' },
-                { role: 'user', content: `Email from: ${msg.from}\nSubject: ${msg.subject}\n\n${(msg.body || msg.snippet).slice(0, 12000)}\n\n${current.trim() ? `Current draft of the reply:\n${current}\n\n` : ''}${instructions ? `Instructions for the reply: ${instructions}` : ''}` }
-            ], { temperature: 0.6 });
+                {
+                    role: 'system',
+                    content: `Write a reply to the email below, in the language of the email.
+${TONE_RULES[tone]}
+${name ? `Sign with the name "${name}".` : 'Sign with the placeholder [Name].'}
+Follow the user's instructions for the content exactly; do not invent commitments, dates or facts that are neither in the email nor in the instructions. If something needed is missing, put a short placeholder in square brackets.
+Output only the reply text: no subject line, no Markdown, no explanations.`
+                },
+                { role: 'user', content: `Email from: ${msg.from}\nSubject: ${msg.subject}\n\n${(msg.body || msg.snippet).slice(0, 12000)}\n\n${current.trim() ? `Current draft of the reply (revise it):\n${current}\n\n` : ''}${instructions ? `Instructions for the reply: ${instructions}` : 'No special instructions: answer what the email asks, briefly.'}` }
+            ], { temperature: 0.5 });
+            msg.draftOptions = false;
             renderAiOut(msg);
         });
     }
@@ -602,7 +667,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
 
     async function allowSending(account) {
         if (account.canSend) return true;
-        if (!confirm(`Allow LifeOS to send email from ${account.label}?\n\nNothing is sent without you tapping Send, and every mail can be taken back for ${UNDO_SECONDS} seconds. You can switch this off again under Manage.`)) return false;
+        if (!await window.App.confirm(`Nothing is sent without you tapping Send, and every mail can be taken back for ${UNDO_SECONDS} seconds. You can switch this off again under Manage.`, { title: `Allow sending from ${account.label}?`, okLabel: 'Allow' })) return false;
         if (account.type === 'gmail') {
             localStorage.setItem(GMAIL_SEND_KEY, 'yes');
         } else {
@@ -623,7 +688,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
         const body = (msg.aiDraft || '').trim();
         if (!/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(to)) return window.App.showToast(ERROR_TEXT.invalid_recipient, 'error');
         if (!body) return window.App.showToast('The reply is empty.', 'error');
-        if (/\[[^\]\n]{2,60}\]/.test(body) && !confirm('The reply still contains a placeholder in [brackets]. Send anyway?')) return;
+        if (/\[[^\]\n]{2,60}\]/.test(body) && !await window.App.confirm('The reply still contains a placeholder in [brackets]. Send anyway?', { okLabel: 'Send anyway' })) return;
 
         try {
             if (!await allowSending(account)) return;
@@ -834,7 +899,7 @@ Answer ONLY with JSON: {"categories": [{"n": 1, "category": "important"}, ...]} 
 
     async function removeAccount(id) {
         const account = imapAccounts.find(a => a.id === id);
-        if (!account || !confirm(`Remove ${account.email} from LifeOS? The mailbox itself is not touched.`)) return;
+        if (!account || !await window.App.confirm(`Remove ${account.email} from LifeOS? The mailbox itself is not touched.`, { okLabel: 'Remove', danger: true })) return;
         try {
             await window.Store.api(`/api/mail/accounts/${id}`, { method: 'DELETE' });
         } catch (err) {

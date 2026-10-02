@@ -72,6 +72,40 @@ window.App = (() => {
         document.body.classList.add('no-scroll');
     }
 
+    /**
+     * Ask a yes/no question in a dialog that matches the app (replaces the browser's own pop-up).
+     * @param {string} message
+     * @param {{title?:string, okLabel?:string, cancelLabel?:string, danger?:boolean}} [options]
+     * @returns {Promise<boolean>}
+     */
+    function confirmDialog(message, options = {}) {
+        return new Promise(resolve => {
+            const overlay = document.getElementById('confirm-overlay');
+            document.getElementById('confirm-title').textContent = options.title || '';
+            document.getElementById('confirm-title').style.display = options.title ? '' : 'none';
+            document.getElementById('confirm-message').textContent = message;
+            const ok = document.getElementById('confirm-ok');
+            const cancel = document.getElementById('confirm-cancel');
+            ok.textContent = options.okLabel || 'OK';
+            ok.className = options.danger ? 'btn btn-danger-solid' : 'btn btn-primary';
+            cancel.textContent = options.cancelLabel || 'Cancel';
+
+            const close = (answer) => {
+                overlay.classList.add('hidden');
+                ok.onclick = cancel.onclick = overlay.onclick = null;
+                document.removeEventListener('keydown', onKey);
+                resolve(answer);
+            };
+            const onKey = (e) => { if (e.key === 'Escape') close(false); };
+            ok.onclick = () => close(true);
+            cancel.onclick = () => close(false);
+            overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+            document.addEventListener('keydown', onKey);
+            overlay.classList.remove('hidden');
+            ok.focus();
+        });
+    }
+
     /** Hide the modal overlay. */
     function hideModal() {
         const overlay = document.getElementById('modal-overlay');
@@ -375,7 +409,7 @@ window.App = (() => {
 
         // Escape key closes modal
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+            if (e.key === 'Escape' && !overlay.classList.contains('hidden') && document.getElementById('confirm-overlay').classList.contains('hidden')) {
                 hideModal();
             }
         });
@@ -567,6 +601,7 @@ window.App = (() => {
         showModal,
         hideModal,
         showToast,
+        confirm: confirmDialog,
         getToday,
         addDays,
         esc,

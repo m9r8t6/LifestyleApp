@@ -367,7 +367,7 @@
         });
 
         const runImport = async (data, label) => {
-            if (!confirm(`Import ${label}? Entries with the same name are replaced by the imported ones.`)) return;
+            if (!await window.App.confirm(`Import ${label}? Entries with the same name are replaced by the imported ones.`, { okLabel: 'Import' })) return;
             try {
                 const count = await window.Store.importData(data);
                 window.App.showToast(`Imported ${count} data sets`, 'success');

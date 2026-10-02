@@ -502,9 +502,9 @@
             document.getElementById('btn-add-ex')?.addEventListener('click', showAddExerciseModal);
 
             exContainer.querySelectorAll('.ex-delete').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-id');
-                    if (!confirm('Remove this exercise from the day?')) return;
+                    if (!await window.App.confirm('Remove this exercise from the day?', { okLabel: 'Remove', danger: true })) return;
                     schedule[selectedDayIndex].exercises = schedule[selectedDayIndex].exercises.filter(x => x.id !== id);
                     saveSchedule();
                     renderSection();

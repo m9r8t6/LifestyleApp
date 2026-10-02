@@ -110,8 +110,8 @@ ${mails.join('\n') || 'none loaded (the Mail screen has not been opened in this 
         } else {
             container.innerHTML = messages.map(bubble).join('')
                 + `<button type="button" class="chat-clear" id="btn-chat-clear">Clear conversation</button>`;
-            document.getElementById('btn-chat-clear')?.addEventListener('click', () => {
-                if (!confirm('Delete this conversation?')) return;
+            document.getElementById('btn-chat-clear')?.addEventListener('click', async () => {
+                if (!await window.App.confirm('Delete this conversation?', { okLabel: 'Delete', danger: true })) return;
                 messages = [];
                 saveMessages();
                 renderSection();

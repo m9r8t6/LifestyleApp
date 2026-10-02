@@ -6,6 +6,7 @@ const auth = require('./auth');
 const google = require('./google');
 const mail = require('./mail');
 const push = require('./push');
+const food = require('./food');
 
 const PORT = Number(process.env.PORT || 3000);
 const ALLOW_SIGNUP = process.env.LIFESTYLE_ALLOW_SIGNUP === 'true';
@@ -328,6 +329,7 @@ app.post('/api/ai/chat', auth.requireUser, wrap(async (req, res) => {
 app.use('/api/google', google.router);
 app.use('/api/mail', mail.router);
 app.use('/api/push', push.router);
+app.use('/api/food', food.router);
 
 // ── Errors ───────────────────────────────────────────────
 
