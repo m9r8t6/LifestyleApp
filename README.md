@@ -56,6 +56,15 @@ LIFESTYLE_GOOGLE_CLIENT_SECRET=...
 The Google OAuth client needs `https://<your hostname>/api/google/callback` as an authorised redirect URI.
 Without these values Mail and Calendar stay switched off.
 
+### Nutrition tracking
+
+`web/js/food.js` holds one table (`NUTRIENTS`) with the 23 tracked values, their DGE/ÖGE reference
+targets for adults and a priority (1 critical, 2 important, 3 usually covered). The recipe form,
+meal planning, gap list, suggestions and AI prompts are generated from it; personal goals shift
+targets and priorities. Nutrition is computed in the app: the AI only supplies per-100 g table
+values and the weight of each ingredient, scanned products use the label values. Recipes saved
+with fewer values are recalculated once in the background.
+
 ### Mailboxes
 
 Besides Gmail, IMAP mailboxes (for example all-inkl) can be added in the Mail screen. The login is

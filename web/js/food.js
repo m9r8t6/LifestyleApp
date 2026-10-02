@@ -6,7 +6,41 @@
     const STORAGE_COMPLETION = 'lifeos_meal_completion';
     const STORAGE_SHOPPING = 'lifeos_shopping_checked'; // { week: 'YYYY-MM-DD', keys: [] }
     const STORAGE_SNACK = 'lifeos_snack_plan';   // { default: recipeId|null, days: { 'YYYY-MM-DD': recipeId|null } }
-    const NUTRIENT_KEYS = ['calories', 'protein', 'fiber', 'zinc', 'omega3', 'vitaminA', 'iron', 'vitaminB12', 'vitaminC', 'vitaminD', 'vitaminE', 'biotin', 'magnesium'];
+    /**
+     * Everything the app tracks, in one place. Targets are the DGE/ÖGE reference values for
+     * adults (25 to under 51), m = men, f = women. `priority`: 1 = critical (often short,
+     * especially on a plant-based diet, per the DGE position on vegan diets), 2 = important,
+     * 3 = usually covered by a mixed diet. Planning, gaps and suggestions go by priority.
+     * `label100` is the hint the AI gets for the unit per 100 g.
+     */
+    const NUTRIENTS = [
+        { key: 'calories',   label: 'Calories',    unit: 'kcal', priority: 1 },
+        { key: 'protein',    label: 'Protein',     unit: 'g',    priority: 1 },
+        { key: 'vitaminB12', label: 'Vitamin B12', unit: 'mcg',  priority: 1, m: 4,    f: 4 },
+        { key: 'vitaminD',   label: 'Vitamin D',   unit: 'mcg',  priority: 1, m: 20,   f: 20 },
+        { key: 'iodine',     label: 'Iodine',      unit: 'mcg',  priority: 1, m: 150,  f: 150 },
+        { key: 'iron',       label: 'Iron',        unit: 'mg',   priority: 1, m: 11,   f: 16 },
+        { key: 'zinc',       label: 'Zinc',        unit: 'mg',   priority: 1, m: 14,   f: 8 },
+        { key: 'calcium',    label: 'Calcium',     unit: 'mg',   priority: 1, m: 1000, f: 1000 },
+        { key: 'omega3',     label: 'Omega-3',     unit: 'mg',   priority: 1, m: 1500, f: 1500 },
+        { key: 'fiber',      label: 'Fiber',       unit: 'g',    priority: 2, m: 30,   f: 30 },
+        { key: 'magnesium',  label: 'Magnesium',   unit: 'mg',   priority: 2, m: 350,  f: 300 },
+        { key: 'selenium',   label: 'Selenium',    unit: 'mcg',  priority: 2, m: 70,   f: 60 },
+        { key: 'vitaminB2',  label: 'Vitamin B2',  unit: 'mg',   priority: 2, m: 1.4,  f: 1.1 },
+        { key: 'folate',     label: 'Folate',      unit: 'mcg',  priority: 2, m: 300,  f: 300 },
+        { key: 'vitaminA',   label: 'Vitamin A',   unit: 'mcg',  priority: 2, m: 850,  f: 700 },
+        { key: 'vitaminC',   label: 'Vitamin C',   unit: 'mg',   priority: 2, m: 110,  f: 95 },
+        { key: 'potassium',  label: 'Potassium',   unit: 'mg',   priority: 2, m: 4000, f: 4000 },
+        { key: 'vitaminE',   label: 'Vitamin E',   unit: 'mg',   priority: 3, m: 8,    f: 8 },
+        { key: 'vitaminK',   label: 'Vitamin K',   unit: 'mcg',  priority: 3, m: 70,   f: 60 },
+        { key: 'vitaminB1',  label: 'Vitamin B1',  unit: 'mg',   priority: 3, m: 1.2,  f: 1.0 },
+        { key: 'vitaminB6',  label: 'Vitamin B6',  unit: 'mg',   priority: 3, m: 1.6,  f: 1.4 },
+        { key: 'niacin',     label: 'Niacin',      unit: 'mg',   priority: 3, m: 15,   f: 12 },
+        { key: 'biotin',     label: 'Biotin',      unit: 'mcg',  priority: 3, m: 40,   f: 40 },
+    ];
+    const NUTRIENT_KEYS = NUTRIENTS.map(n => n.key);
+    const NUTRIENT_VERSION = 2;   // recipes saved with fewer values are recalculated once
+    let PRIORITY = {};            // key → 1..3, adjusted to the user's goals
 
     let DAILY_TARGETS = {};
 
@@ -25,32 +59,31 @@
             bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age) - 161;
         }
 
+        const goals = profile.goals || {};
         let cals = Math.round(bmr * 1.55);
-        if (profile.goals && profile.goals.muscle) cals += 300;
+        if (goals.muscle) cals += 300;
 
-        let protein = Math.round((profile.goals && profile.goals.muscle ? 2.0 : 1.6) * profile.weight);
-        let zinc = (profile.goals && profile.goals.skin) ? 15 : (profile.sex === 'male' ? 11 : 8);
-        let omega3 = (profile.goals && profile.goals.skin) ? 2000 : 1000;
-        let vitaminA = (profile.goals && profile.goals.skin) ? 900 : 700;
-        let biotin = (profile.goals && profile.goals.hair) ? 30 : 0;
-        let magnesium = (profile.goals && profile.goals.muscle) ? 400 : 300;
+        DAILY_TARGETS = {};
+        PRIORITY = {};
+        NUTRIENTS.forEach(n => {
+            DAILY_TARGETS[n.key] = profile.sex === 'female' ? n.f : n.m;
+            PRIORITY[n.key] = n.priority;
+        });
+        DAILY_TARGETS.calories = cals;
+        DAILY_TARGETS.protein = Math.round((goals.muscle ? 2.0 : 1.6) * profile.weight);
 
-        DAILY_TARGETS = {
-            calories: cals,
-            protein: protein,
-            zinc: zinc,
-            omega3: omega3,
-            vitaminA: vitaminA,
-            iron: 15,
-            vitaminB12: 2.4,
-            vitaminC: 90,
-            vitaminD: 15,
-            vitaminE: 15,
-            biotin: biotin,
-            magnesium: magnesium,
-            fiber: 35
-        };
+        // Personal goals raise targets and move what matters for them to the top
+        if (goals.muscle) { DAILY_TARGETS.magnesium += 50; PRIORITY.magnesium = 1; }
+        if (goals.skin) {
+            DAILY_TARGETS.zinc += 2; DAILY_TARGETS.omega3 = 2000;
+            PRIORITY.vitaminA = 1; PRIORITY.vitaminC = 1; PRIORITY.vitaminE = 2;
+        }
+        if (goals.hair) { PRIORITY.biotin = 1; PRIORITY.selenium = 1; }
     }
+
+    /** Nutrients ordered by how much they matter (calories and protein first). */
+    const byPriority = () => [...NUTRIENTS].sort((a, b) => PRIORITY[a.key] - PRIORITY[b.key]);
+    const meter = (key) => `<span class="prio prio-${PRIORITY[key]}" title="Priority ${PRIORITY[key]} of 3"><i></i><i></i><i></i></span>`;
 
     updateDailyTargets();
 
@@ -222,6 +255,7 @@
             description: String(raw.description || ''),
             instructions: String(raw.instructions || ''),
             type: raw.type === 'snack' ? 'snack' : 'meal',
+            nv: Number(raw.nv) || 1,
             nutrients,
             ingredients,
             isCustom: raw.isCustom !== false,
@@ -314,8 +348,10 @@
     function generateDayMeals(date, keep = []) {
         const recent = new Set([...(mealPlan[addDays(date, -1)] || []), ...(mealPlan[addDays(date, -2)] || [])]);
         const selected = [...keep].slice(0, 3);
-        const tracked = ['protein', 'zinc', 'omega3', 'vitaminA', 'iron', 'magnesium'];
-        const weights = { protein: 2, zinc: 2, omega3: 2, vitaminA: 1, iron: 1, magnesium: 1 };
+        // Every tracked value counts; critical ones three times as much as minor ones
+        const tracked = NUTRIENT_KEYS.filter(k => k !== 'calories');
+        const weights = {};
+        tracked.forEach(k => { weights[k] = { 1: 1.5, 2: 0.7, 3: 0.3 }[PRIORITY[k]]; });
         const totals = { calories: 0 };
         tracked.forEach(k => { totals[k] = 0; });
         selected.forEach(id => {
@@ -363,10 +399,10 @@
         const answer = await window.App.ai([
             {
                 role: 'system',
-                content: "You are a food composition database. For EACH numbered ingredient return: \"name\" (a common English name, e.g. 'tomate' -> 'Tomato'), \"grams\" (the weight in grams of the stated amount: convert ml, tbsp, tsp, pieces, slices, cups, 'whole' etc. to grams; for an amount already in g repeat it) and \"per100g\" (the nutritional values PER 100 GRAMS of that ingredient, raw/dry as stated, from standard food composition tables). Return ONLY a JSON object: {\"ingredients\": [{\"n\": 1, \"name\": string, \"grams\": number, \"per100g\": {\"calories\": number, \"protein\": number, \"fiber\": number, \"zinc\": number, \"omega3\": number, \"iron\": number, \"vitaminB12\": number, \"vitaminA\": number, \"vitaminC\": number, \"vitaminD\": number, \"vitaminE\": number, \"biotin\": number, \"magnesium\": number}}]} with one entry per ingredient, in the same order. Units per 100 g: calories kcal; protein g; fiber g; zinc mg; omega3 in MILLIGRAMS of omega-3 fatty acids (walnuts about 9000, flaxseed about 22000, olive oil about 760, most vegetables under 100); iron mg; vitaminB12 mcg; vitaminA mcg RAE; vitaminC mg; vitaminD mcg; vitaminE mg; biotin mcg; magnesium mg."
+                content: `You are a food composition database. For EACH numbered ingredient return: \"name\" (a common English name, e.g. 'tomate' -> 'Tomato'), \"grams\" (the weight in grams of the stated amount: convert ml, tbsp, tsp, pieces, slices, cups, 'whole' etc. to grams; for an amount already in g repeat it) and \"per100g\" (the nutritional values PER 100 GRAMS of that ingredient, raw/dry as stated, from standard food composition tables). Return ONLY a JSON object: {\"ingredients\": [{\"n\": 1, \"name\": string, \"grams\": number, \"per100g\": {${NUTRIENT_KEYS.map(k => `\"${k}\": number`).join(', ')}}}]} with one entry per ingredient, in the same order. Units per 100 g: ${NUTRIENTS.map(n => `${n.key} ${n.unit}`).join('; ')}. Notes: omega3 is MILLIGRAMS of omega-3 fatty acids (walnuts about 9000, flaxseed about 22000, olive oil about 760, most vegetables under 100); vitaminA is mcg RAE; folate is mcg folate equivalents; iodine is mcg (iodised salt about 2000, most plants under 5).`
             },
             { role: 'user', content: list.map((i, n) => `${n + 1}. ${i.amount} ${i.unit} ${i.name}`).join('\n') }
-        ], { temperature: 0, json: true, max_tokens: 3500 });
+        ], { temperature: 0, json: true, max_tokens: 7500 });
         const estimates = window.App.parseAIJson(answer).ingredients;
         if (!Array.isArray(estimates) || estimates.length === 0) throw new Error('The estimate was empty.');
 
@@ -389,21 +425,11 @@
     }
 
     function nutrientTagsHtml(n) {
-        return `
-            <span class="recipe-tag">${n.calories} kcal</span>
-            <span class="recipe-tag high-protein">Protein ${n.protein} g</span>
-            <span class="recipe-tag zinc">Zinc ${n.zinc} mg</span>
-            <span class="recipe-tag omega3">Omega-3 ${n.omega3} mg</span>
-            <span class="recipe-tag iron">Iron ${n.iron} mg</span>
-            <span class="recipe-tag">Fiber ${n.fiber} g</span>
-            <span class="recipe-tag">B12 ${n.vitaminB12} mcg</span>
-            <span class="recipe-tag">Vit A ${n.vitaminA} mcg</span>
-            <span class="recipe-tag">Vit C ${n.vitaminC} mg</span>
-            <span class="recipe-tag">Vit D ${n.vitaminD} mcg</span>
-            <span class="recipe-tag">Vit E ${n.vitaminE} mg</span>
-            <span class="recipe-tag">Biotin ${n.biotin} mcg</span>
-            <span class="recipe-tag">Magnesium ${n.magnesium} mg</span>
-        `;
+        const cls = { protein: 'high-protein', zinc: 'zinc', omega3: 'omega3', iron: 'iron' };
+        const fmt = (v) => Math.round(v * 10) / 10;
+        return byPriority().map(d => d.key === 'calories'
+            ? `<span class="recipe-tag">${fmt(n.calories)} kcal</span>`
+            : `<span class="recipe-tag ${cls[d.key] || ''}">${d.label} ${fmt(n[d.key])} ${d.unit}</span>`).join('');
     }
 
     function recipeDetailsHtml(r) {
@@ -583,56 +609,49 @@
             });
         });
 
-        const macros = [
-            { key: 'calories', label: 'Calories', unit: 'kcal' },
-            { key: 'protein', label: 'Protein', unit: 'g' },
-            { key: 'zinc', label: 'Zinc', unit: 'mg' },
-            { key: 'omega3', label: 'Omega-3', unit: 'mg' },
-            { key: 'vitaminA', label: 'Vitamin A', unit: 'mcg' },
-            { key: 'iron', label: 'Iron', unit: 'mg' },
-            { key: 'magnesium', label: 'Magnesium', unit: 'mg' },
-            { key: 'fiber', label: 'Fiber', unit: 'g' }
-        ];
-        if (DAILY_TARGETS.biotin > 0) macros.push({ key: 'biotin', label: 'Biotin', unit: 'mcg' });
-
-        let html = `
-            <div class="card-header-row section-gap"><h2>Daily Nutrition</h2></div>
-            <div class="glass-card stagger-item nutrition-card">
-                <div class="nutrition-legend"><span class="legend-dot eaten"></span>eaten<span class="legend-dot planned"></span>planned</div>`;
-
-        macros.forEach(m => {
+        const pending = recipes.some(r => r.nv < NUTRIENT_VERSION);
+        const row = (m) => {
             const target = DAILY_TARGETS[m.key] || 1;
             const plannedPct = Math.min(100, Math.round((sum[m.key] / target) * 100));
             const eatenPct = Math.min(100, Math.round((eaten[m.key] / target) * 100));
-            html += `
+            return `
                 <div class="nutrition-row">
                     <div class="nutrition-label">
-                        <strong>${m.label}</strong>
-                        <span>${Math.round(eaten[m.key])} / ${target} ${m.unit}</span>
+                        <strong>${meter(m.key)}${m.label}</strong>
+                        <span>${Math.round(eaten[m.key] * 10) / 10} / ${target} ${m.unit}</span>
                     </div>
                     <div class="progress-track stacked">
                         <div class="progress-fill planned" style="width:${plannedPct}%;"></div>
                         <div class="progress-fill ${eatenPct >= 100 ? 'grad-success' : 'grad-primary'}" style="width:${eatenPct}%;"></div>
                     </div>
-                </div>
-            `;
-        });
-        html += `</div>`;
+                </div>`;
+        };
+        const ordered = byPriority();
+        const main = ordered.filter(m => PRIORITY[m.key] <= 2);
+        const minor = ordered.filter(m => PRIORITY[m.key] === 3);
 
-        const gaps = [];
-        if (sum.zinc < DAILY_TARGETS.zinc * 0.7) gaps.push(`Zinc (${DAILY_TARGETS.zinc}mg)`);
-        if (sum.omega3 < DAILY_TARGETS.omega3 * 0.7) gaps.push(`Algae Omega-3 (${DAILY_TARGETS.omega3}mg)`);
-        if (sum.vitaminB12 < DAILY_TARGETS.vitaminB12 * 0.7) gaps.push('Vitamin B12 (1000mcg)');
-        if (sum.vitaminA < DAILY_TARGETS.vitaminA * 0.7) gaps.push(`Vitamin A (Skin support)`);
-        if (DAILY_TARGETS.biotin > 0 && sum.biotin < DAILY_TARGETS.biotin * 0.7) gaps.push(`Biotin (${DAILY_TARGETS.biotin}mcg)`);
-        if (sum.magnesium < DAILY_TARGETS.magnesium * 0.7) gaps.push(`Magnesium (${DAILY_TARGETS.magnesium}mg)`);
+        let html = `
+            <div class="card-header-row section-gap"><h2>Daily Nutrition</h2></div>
+            <div class="glass-card stagger-item nutrition-card">
+                <div class="nutrition-legend"><span class="legend-dot eaten"></span>eaten<span class="legend-dot planned"></span>planned<span style="margin-left:auto;">${meter('protein')} = priority</span></div>
+                ${pending ? `<p class="form-hint" style="margin:0;">Values for the newly tracked nutrients are still being calculated for some recipes.</p>` : ''}
+                ${main.map(row).join('')}
+                <button type="button" class="chat-clear" style="margin:0 auto;" onclick="FoodModule.toggleMinorNutrients()">${showMinor ? 'Hide' : 'Show'} ${minor.length} more</button>
+                ${showMinor ? minor.map(row).join('') : ''}
+            </div>`;
+
+        // What today's plan leaves open, most important first
+        const supplementHint = { vitaminB12: 'a supplement is the reliable source on a plant-based diet', vitaminD: 'little comes from food; sun or a supplement', iodine: 'iodised salt, seaweed', omega3: 'flaxseed, walnuts, algae oil', calcium: 'fortified plant milk, tofu, kale', iron: 'lentils, with vitamin C', zinc: 'pumpkin seeds, oats, legumes', selenium: 'Brazil nuts', vitaminB2: 'almonds, mushrooms, fortified foods' };
+        const gaps = ordered
+            .filter(m => m.key !== 'calories' && PRIORITY[m.key] <= 2 && sum[m.key] < DAILY_TARGETS[m.key] * 0.7)
+            .map(m => `${meter(m.key)}<strong>${m.label}</strong> ${Math.round(sum[m.key] / DAILY_TARGETS[m.key] * 100)}% of ${DAILY_TARGETS[m.key]} ${m.unit}${supplementHint[m.key] ? ` <span class="form-hint">(${supplementHint[m.key]})</span>` : ''}`);
 
         html += `<div class="card-header-row section-gap"><h2>${t('suggested_supplements')}</h2></div>`;
         if (gaps.length === 0) {
             html += `<div class="glass-card-sm stagger-item"><div class="empty-state-text">${t('targets_hit')}</div></div>`;
         } else {
             html += `<div class="glass-card-sm stagger-item supplement-box">
-                <p class="form-hint" style="margin:0 0 6px;">Today's planned meals leave a gap here:</p>
+                <p class="form-hint" style="margin:0 0 6px;">Today's plan covers less than 70% of these, most important first:</p>
                 <ul class="detail-list" style="margin:0;">
                     ${gaps.map(g => `<li>${g}</li>`).join('')}
                 </ul>
@@ -643,6 +662,12 @@
     }
 
     let recipeSearchQuery = '';
+    let showMinor = false;
+
+    function toggleMinorNutrients() {
+        showMinor = !showMinor;
+        renderSupplements();
+    }
 
     function setRecipeSearchQuery(val) {
         recipeSearchQuery = val.toLowerCase();
@@ -792,73 +817,13 @@
                 <button type="button" id="btn-calc-macros" class="btn btn-sm btn-ai">Estimate nutrition from ingredients</button>
             </div>
             
-            <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Nutritional Values</h4>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Calories (kcal)</label>
-                    <input type="number" id="recipe-cal" class="form-input" value="500">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Protein (g)</label>
-                    <input type="number" id="recipe-pro" class="form-input" value="20">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Fiber (g)</label>
-                    <input type="number" id="recipe-fiber" class="form-input" value="8">
-                </div>
-                <div class="form-group"></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Zinc (mg)</label>
-                    <input type="number" step="0.1" id="recipe-zinc" class="form-input" value="3">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Omega-3 (mg)</label>
-                    <input type="number" id="recipe-omega" class="form-input" value="500">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Iron (mg)</label>
-                    <input type="number" step="0.1" id="recipe-iron" class="form-input" value="3">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Vit B12 (mcg)</label>
-                    <input type="number" step="0.1" id="recipe-b12" class="form-input" value="0">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Vit A (mcg)</label>
-                    <input type="number" step="1" id="recipe-vita" class="form-input" value="0">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Vit C (mg)</label>
-                    <input type="number" step="1" id="recipe-vitc" class="form-input" value="0">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Vit D (mcg)</label>
-                    <input type="number" step="0.1" id="recipe-vitd" class="form-input" value="0">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Vit E (mg)</label>
-                    <input type="number" step="0.1" id="recipe-vite" class="form-input" value="0">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Biotin (mcg)</label>
-                    <input type="number" step="1" id="recipe-biotin" class="form-input" value="0">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Magnesium (mg)</label>
-                    <input type="number" step="1" id="recipe-mag" class="form-input" value="0">
-                </div>
+            <h4 style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Nutritional values (whole recipe)</h4>
+            <div class="nutrient-fields">
+                ${byPriority().map(n => `
+                    <div class="form-group">
+                        <label class="form-label" for="nutr-${n.key}">${n.label} (${n.unit})</label>
+                        <input type="number" inputmode="decimal" step="any" min="0" id="nutr-${n.key}" class="form-input" value="0">
+                    </div>`).join('')}
             </div>
         `;
         const footerHTML = `
@@ -906,11 +871,8 @@
             document.getElementById('ing-amount').focus();
         });
 
-        const FIELD_IDS = {
-            calories: 'recipe-cal', protein: 'recipe-pro', fiber: 'recipe-fiber', zinc: 'recipe-zinc', omega3: 'recipe-omega',
-            iron: 'recipe-iron', vitaminB12: 'recipe-b12', vitaminA: 'recipe-vita', vitaminC: 'recipe-vitc',
-            vitaminD: 'recipe-vitd', vitaminE: 'recipe-vite', biotin: 'recipe-biotin', magnesium: 'recipe-mag'
-        };
+        const FIELD_IDS = {};
+        NUTRIENT_KEYS.forEach(key => { FIELD_IDS[key] = `nutr-${key}`; });
         const setFields = (totals, onlyKeys) => {
             Object.entries(FIELD_IDS).forEach(([key, id]) => {
                 if (onlyKeys && !onlyKeys.has(key)) return;
@@ -929,7 +891,7 @@
         // When every ingredient was scanned, the label values alone give the totals they cover
         window.applyLabelTotals = () => {
             const list = window.currentRecipeIngredients;
-            if (!document.getElementById('recipe-cal') || list.length === 0 || !list.every(i => i.per100g)) return;
+            if (!document.getElementById('nutr-calories') || list.length === 0 || !list.every(i => i.per100g)) return;
             const totals = {};
             const keys = new Set();
             list.forEach(ing => Object.entries(labelShare(ing)).forEach(([key, value]) => { totals[key] = (totals[key] || 0) + value; keys.add(key); }));
@@ -1014,19 +976,9 @@
             const emoji = document.getElementById('recipe-emoji').value.trim() || '🍲';
             const prepTime = document.getElementById('recipe-prep').value.trim() || '15 min';
             
-            const cal = parseInt(document.getElementById('recipe-cal').value) || 0;
-            const pro = parseInt(document.getElementById('recipe-pro').value) || 0;
-            const zinc = parseFloat(document.getElementById('recipe-zinc').value) || 0;
-            const omega3 = parseInt(document.getElementById('recipe-omega').value) || 0;
-            const iron = parseFloat(document.getElementById('recipe-iron').value) || 0;
-            const b12 = parseFloat(document.getElementById('recipe-b12').value) || 0;
-            const vita = parseInt(document.getElementById('recipe-vita').value) || 0;
-            const vitc = parseInt(document.getElementById('recipe-vitc').value) || 0;
-            const vitd = parseFloat(document.getElementById('recipe-vitd').value) || 0;
-            const vite = parseFloat(document.getElementById('recipe-vite').value) || 0;
-            const biotin = parseInt(document.getElementById('recipe-biotin').value) || 0;
-            const mag = parseInt(document.getElementById('recipe-mag').value) || 0;
-            
+            const nutrients = {};
+            NUTRIENT_KEYS.forEach(key => { nutrients[key] = parseFloat(document.getElementById(`nutr-${key}`).value) || 0; });
+
             const inst = document.getElementById('recipe-inst').value.trim();
 
             if (!name) {
@@ -1047,7 +999,8 @@
                 name,
                 emoji,
                 prepTime,
-                nutrients: { calories: cal, protein: pro, fiber: parseInt(document.getElementById('recipe-fiber').value) || 0, zinc: zinc, omega3: omega3, vitaminA: vita, iron: iron, vitaminB12: b12, vitaminC: vitc, vitaminD: vitd, vitaminE: vite, biotin: biotin, magnesium: mag },
+                nv: NUTRIENT_VERSION,
+                nutrients,
                 ingredients: ingredients,
                 instructions: inst,
                 isCustom: true
@@ -1105,6 +1058,8 @@
             });
         });
         return {
+            units: Object.fromEntries(NUTRIENTS.map(n => [n.key, n.unit])),
+            priorities: Object.fromEntries(NUTRIENT_KEYS.map(k => [k, PRIORITY[k]])),
             targets: DAILY_TARGETS,
             plannedTotals: planned,
             eatenTotals: eaten,
@@ -1215,16 +1170,12 @@
             }
 
             // Prepare recipe catalog for AI
-            const catalog = recipes.filter(isMeal).map(r => ({
-                id: r.id,
-                name: r.name,
-                calories: r.nutrients.calories,
-                protein: r.nutrients.protein,
-                zinc: r.nutrients.zinc,
-                omega3: r.nutrients.omega3,
-                vitaminA: r.nutrients.vitaminA || 0,
-                iron: r.nutrients.iron
-            }));
+            const planKeys = byPriority().filter(n => PRIORITY[n.key] === 1).map(n => n.key);
+            const catalog = recipes.filter(isMeal).map(r => {
+                const entry = { id: r.id, name: r.name };
+                planKeys.forEach(key => { entry[key] = r.nutrients[key]; });
+                return entry;
+            });
             
             let profile = {};
             try { profile = JSON.parse(localStorage.getItem('lifeos_profile')) || {}; } catch(e) {}
@@ -1261,7 +1212,7 @@ Their budget preference is: ${budget} (if cheap, prioritize lower-cost recipes).
 ${goalsStr}
 ${mealPrepInstruction}
 They need a 7-day meal plan chosen ONLY from the exact list of recipes provided below.
-The daily targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg.
+The daily targets, most important first: ${byPriority().filter(n => PRIORITY[n.key] <= 2).map(n => `${n.label} ${DAILY_TARGETS[n.key]} ${n.unit}`).join(', ')}. Cover the first ones before the later ones.
 Here is the catalog of available recipes (choose from these IDs):
 ${JSON.stringify(catalog)}
 
@@ -1307,23 +1258,55 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
         }
     }
 
-    function init() {
-        loadData();
+    let backfilling = false;
+
+    /**
+     * Recipes saved before the extra nutrients existed only know 13 values. They are
+     * recalculated once from their ingredients, one after the other, in the background.
+     */
+    async function backfillNutrients() {
+        if (backfilling || navigator.onLine === false) return;
+        const todo = recipes.filter(r => r.nv < NUTRIENT_VERSION && r.ingredients.length > 0);
+        if (todo.length === 0) return;
+        backfilling = true;
+        let done = 0;
+        try {
+            for (const recipe of todo) {
+                const { totals } = await estimateTotals(recipe.ingredients);
+                const current = recipes.find(r => r.id === recipe.id);
+                if (!current) continue;
+                current.nutrients = totals;
+                current.nv = NUTRIENT_VERSION;
+                saveRecipes();
+                done++;
+            }
+        } catch (err) {
+            console.warn('Nutrient recalculation paused:', err.message);
+        } finally {
+            backfilling = false;
+        }
+        if (done > 0) {
+            if (document.body.dataset.section === 'food') { renderToday(); renderSupplements(); renderLibrary(); }
+            if (window.App.refreshDashboard) window.App.refreshDashboard();
+            if (done === todo.length) window.App.showToast(`Nutrition recalculated for ${done} recipes`, 'success');
+        }
     }
 
-    const SUGGEST_NUTRIENTS = [
-        { key: 'protein', label: 'Protein' }, { key: 'zinc', label: 'Zinc' }, { key: 'iron', label: 'Iron' },
-        { key: 'omega3', label: 'Omega-3' }, { key: 'magnesium', label: 'Magnesium' }, { key: 'fiber', label: 'Fiber' },
-        { key: 'vitaminA', label: 'Vitamin A' }, { key: 'vitaminB12', label: 'Vitamin B12' }, { key: 'vitaminC', label: 'Vitamin C' },
-        { key: 'vitaminD', label: 'Vitamin D' }, { key: 'vitaminE', label: 'Vitamin E' }, { key: 'biotin', label: 'Biotin' },
-    ];
+    function init() {
+        loadData();
+        // After the app has settled, bring older recipes up to the full nutrient list
+        setTimeout(backfillNutrients, 4000);
+    }
+
+    const SUGGEST_NUTRIENTS = NUTRIENTS.filter(n => n.key !== 'calories');
 
     /** Ask what kind of suggestion is wanted before the AI writes one. */
     function recommendNewRecipe() {
         // Nutrients where today's plan is weakest are offered first
         const today = getContextForAI();
         const gap = (key) => (DAILY_TARGETS[key] > 0 ? today.plannedTotals[key] / DAILY_TARGETS[key] : 1);
-        const ordered = [...SUGGEST_NUTRIENTS].sort((a, b) => gap(a.key) - gap(b.key));
+        // Critical nutrients first, and within a level whatever today's plan covers least
+        const ordered = [...SUGGEST_NUTRIENTS].sort((a, b) => (PRIORITY[a.key] - PRIORITY[b.key]) || (gap(a.key) - gap(b.key)));
 
         window.App.showModal('Suggest a recipe', `
             <div class="form-group">
@@ -1343,7 +1326,7 @@ Return ONLY a valid JSON object where the keys are the following exact date stri
                 <div class="tab-pills" id="suggest-nutrients">
                     ${ordered.map(n => `<button type="button" class="tab-pill" data-key="${n.key}">${n.label}${gap(n.key) < 0.7 ? ' ·low' : ''}</button>`).join('')}
                 </div>
-                <p class="form-hint" style="margin-top:8px;">"low" marks what today's plan covers least.</p>
+                <p class="form-hint" style="margin-top:8px;">Most important first. "low" marks what today's plan covers by less than 70%.</p>
             </div>
             <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label" for="suggest-wish">Anything else? (optional)</label>
@@ -1404,7 +1387,7 @@ Their dietary restriction is: ${diet}.
 Their budget preference is: ${budget} (if cheap, strictly limit to low-cost ingredients).
 ${goalsStr}
 They already have these recipes, do NOT duplicate them: ${existingNames}.
-Their personal daily nutritional targets are: Calories: ${DAILY_TARGETS.calories}, Protein: ${DAILY_TARGETS.protein}g, Zinc: ${DAILY_TARGETS.zinc}mg, Omega-3: ${DAILY_TARGETS.omega3}mg, Vitamin A: ${DAILY_TARGETS.vitaminA}mcg, Iron: ${DAILY_TARGETS.iron}mg, Vit C: ${DAILY_TARGETS.vitaminC}mg, Vit D: ${DAILY_TARGETS.vitaminD}mcg, Vit E: ${DAILY_TARGETS.vitaminE}mg, Biotin: ${DAILY_TARGETS.biotin}mcg, Magnesium: ${DAILY_TARGETS.magnesium}mg, Fiber: ${DAILY_TARGETS.fiber}g.
+Their personal daily nutritional targets, most important first: ${byPriority().map(n => `${n.label} ${DAILY_TARGETS[n.key]} ${n.unit}`).join(', ')}.
 ${options.type === 'snack'
     ? 'This is an EVENING SNACK, not a meal: 150-300 kcal, at most 4 ingredients, ready in under 5 minutes, light enough before sleep.'
     : 'The recipe should be roughly 1/3 of these targets.'}
@@ -1412,7 +1395,7 @@ ${options.ingredients.length ? `It MUST be built around these ingredients (all o
 ${options.nutrients.length ? `It MUST be especially rich in: ${options.nutrients.join(', ')}. Choose ingredients that are genuinely good sources of these and reflect that in the nutrient numbers.` : ''}
 ${options.wish ? `Additional wish from the user: ${options.wish}` : ''}
 
-The numbers in "nutrients" below are placeholders: replace every one with the value calculated from your ingredient amounts (kcal, g, g, mg, mg, mcg, mg, mcg, mg, mcg, mg, mcg, mg in the order shown). Give every ingredient an amount with a unit in g or ml where possible.
+Leave "nutrients" as shown; the app calculates the values from your ingredients. Give every ingredient an amount with a unit in g or ml where possible.
 You MUST respond ONLY with a raw, valid JSON object exactly matching this structure (no markdown, no backticks, no extra text):
 {
   "name": "Creative Recipe Name",
@@ -1420,7 +1403,7 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
   "prepTime": "15 min",
   "description": "A short, appetizing description.",
   "instructions": "Step 1: ...\\nStep 2: ...",
-  "nutrients": { "calories": 0, "protein": 0, "fiber": 0, "zinc": 0, "omega3": 0, "vitaminA": 0, "iron": 0, "vitaminB12": 0, "vitaminC": 0, "vitaminD": 0, "vitaminE": 0, "biotin": 0, "magnesium": 0 },
+  "nutrients": { "calories": 0, "protein": 0 },
   "ingredients": [
     { "name": "Ingredient Name", "amount": 100, "unit": "g" }
   ]
@@ -1439,6 +1422,7 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
             // Work the nutrition out ingredient by ingredient, the same way as for your own recipes
             try {
                 parsed.nutrients = (await estimateTotals(parsed.ingredients)).totals;
+                parsed.nv = NUTRIENT_VERSION;
             } catch (err) {
                 console.warn('Nutrition check failed, keeping the first estimate:', err);
             }
@@ -1484,6 +1468,6 @@ You MUST respond ONLY with a raw, valid JSON object exactly matching this struct
         });
     }
 
-    window.FoodModule = { init, renderSection, getCompletionData, getTodayItems, getContextForAI, showSnackModal, setSnack, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal, setRecipeSearchQuery };
+    window.FoodModule = { init, renderSection, getCompletionData, getTodayItems, getContextForAI, toggleMinorNutrients, backfillNutrients, showSnackModal, setSnack, toggleExpand, toggleCompletion, deleteRecipe, generateAIPlan, updateDailyTargets, recommendNewRecipe, showSwapModal, swapMeal, setRecipeSearchQuery };
 
 })();

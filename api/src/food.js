@@ -25,6 +25,16 @@ const FIELDS = {
     vitaminD:   { key: 'vitamin-d_100g', factor: 1e6 },
     vitaminB12: { key: 'vitamin-b12_100g', factor: 1e6 },
     biotin:     { key: 'biotin_100g', factor: 1e6 },
+    calcium:    { key: 'calcium_100g', factor: 1000 },
+    potassium:  { key: 'potassium_100g', factor: 1000 },
+    iodine:     { key: 'iodine_100g', factor: 1e6 },
+    selenium:   { key: 'selenium_100g', factor: 1e6 },
+    folate:     { key: 'vitamin-b9_100g', factor: 1e6 },
+    vitaminK:   { key: 'vitamin-k_100g', factor: 1e6 },
+    vitaminB1:  { key: 'vitamin-b1_100g', factor: 1000 },
+    vitaminB2:  { key: 'vitamin-b2_100g', factor: 1000 },
+    vitaminB6:  { key: 'vitamin-b6_100g', factor: 1000 },
+    niacin:     { key: 'vitamin-pp_100g', factor: 1000 },
 };
 
 /** Turn an Open Food Facts product into what the recipe form needs. */

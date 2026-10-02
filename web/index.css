@@ -623,6 +623,12 @@ code { font-size: 0.85em; background: var(--surface); padding: 1px 5px; border-r
 .legend-dot.planned { background: var(--text-muted); opacity: 0.35; }
 .nutrition-label { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 5px; }
 .nutrition-label span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.prio { display: inline-flex; gap: 2px; margin-right: 7px; vertical-align: middle; }
+.prio i { width: 5px; height: 11px; border-radius: 2px; background: var(--surface-active); }
+.prio-1 i { background: var(--primary); }
+.prio-2 i:nth-child(-n+2) { background: var(--warning); }
+.prio-3 i:first-child { background: var(--text-muted); }
+.nutrient-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 .supplement-box { border-left: 4px solid var(--warning); }
 
 /* ─── Sport ─── */

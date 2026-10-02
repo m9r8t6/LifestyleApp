@@ -308,7 +308,7 @@ app.post('/api/ai/chat', auth.requireUser, wrap(async (req, res) => {
 
     const payload = { model: 'deepseek-chat', messages: body.messages };
     if (typeof body.temperature === 'number') payload.temperature = body.temperature;
-    if (typeof body.max_tokens === 'number') payload.max_tokens = Math.min(body.max_tokens, 4000);
+    if (typeof body.max_tokens === 'number') payload.max_tokens = Math.min(body.max_tokens, 8000);
     if (body.response_format?.type === 'json_object') payload.response_format = { type: 'json_object' };
 
     try {

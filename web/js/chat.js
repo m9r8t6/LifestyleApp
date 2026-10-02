@@ -70,7 +70,9 @@ Goals: ${goals.join(', ') || 'none set'}
 Diet restrictions: ${(profile.dietRestrictions || []).join(', ') || 'none'}
 
 --- NUTRITION ---
-Daily targets (kcal; protein and fiber in g; zinc, iron, omega3, vitaminC, vitaminE, magnesium in mg; vitaminA, B12, D, biotin in mcg): ${JSON.stringify(food.targets || {})}
+Units: ${JSON.stringify(food.units || {})}
+Priority of each nutrient (1 = most important to cover, 3 = least): ${JSON.stringify(food.priorities || {})}
+Daily targets: ${JSON.stringify(food.targets || {})}
 Today's meals (an entry marked (snack) is the evening snack): ${(food.todaysMeals || []).join('; ') || 'none planned'}
 Nutrients in today's planned meals (units as in the targets): ${JSON.stringify(food.plannedTotals || {})}
 Nutrients eaten so far today: ${JSON.stringify(food.eatenTotals || {})}
