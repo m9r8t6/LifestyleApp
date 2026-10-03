@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#f5f0e6"/>
+  <!-- sun rising out of a bowl, with a leaf: the day, food and care in one mark -->
+  <circle cx="256" cy="246" r="92" fill="#c8553d"/>
+  <path d="M112 262h288a144 144 0 0 1-288 0z" fill="#1d1a16"/>
+  <path d="M318 108c44 6 70 36 68 82-44-4-72-34-68-82z" fill="#5f7f63"/>
+</svg>

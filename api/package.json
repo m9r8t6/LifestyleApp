@@ -1,0 +1,22 @@
+{
+  "name": "lifestyle-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LifeOS backend: accounts, reliable data sync and AI proxy",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test --test-concurrency=1 test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "imapflow": "^2.2.1",
+    "mailparser": "^3.9.33",
+    "nodemailer": "^10.0.13",
+    "pg": "^8.13.1",
+    "web-push": "^3.6.7"
+  }
+}
