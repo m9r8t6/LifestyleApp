@@ -233,6 +233,52 @@ test('google connection is held by the server', async () => {
     assert.equal(r.body.connected, false);
 });
 
+test('the first account can add and remove other people; their data is separate', async () => {
+    const owner = client();
+    await owner('POST', '/api/auth/login', { username: 'tester', password: 'correct horse battery' });
+    let r = await owner('GET', '/api/auth/status');
+    assert.equal(r.body.user.admin, true);
+
+    r = await owner('POST', '/api/users', { username: 'Guest One', password: 'guest password 1' });
+    assert.equal(r.body.error, 'invalid_username');
+    r = await owner('POST', '/api/users', { username: 'Guest', password: 'short' });
+    assert.equal(r.body.error, 'weak_password');
+    r = await owner('POST', '/api/users', { username: 'Guest', password: 'guest password 1' });
+    assert.equal(r.status, 200);
+    const guestId = r.body.user.id;
+    r = await owner('POST', '/api/users', { username: 'guest', password: 'guest password 2' });
+    assert.equal(r.status, 409);
+
+    const stored = (await pool.query('SELECT pass_hash FROM users WHERE username = $1', ['guest'])).rows[0].pass_hash;
+    assert.ok(stored.startsWith('scrypt$') && !stored.includes('guest password'));
+
+    const guest = client();
+    r = await guest('POST', '/api/auth/login', { username: 'guest', password: 'guest password 1' });
+    assert.equal(r.status, 200);
+    r = await guest('GET', '/api/auth/status');
+    assert.equal(r.body.user.admin, false);
+    // Starts empty: nothing of the owner's data is visible
+    r = await guest('POST', '/api/sync', { since: 0, changes: [{ key: 'lifeos_todos', value: '["guest"]', base: 0 }] });
+    assert.deepEqual(r.body.changes, []);
+    r = await owner('POST', '/api/sync', { since: 0, changes: [] });
+    assert.ok(!r.body.changes.some(c => c.value === '["guest"]'));
+
+    // A normal account cannot manage people
+    r = await guest('GET', '/api/users');
+    assert.equal(r.status, 403);
+    r = await guest('POST', '/api/users', { username: 'another', password: 'another password' });
+    assert.equal(r.status, 403);
+
+    r = await owner('GET', '/api/users');
+    assert.deepEqual(r.body.users.map(u => [u.username, u.admin]), [['tester', true], ['guest', false]]);
+    r = await owner('DELETE', `/api/users/${r.body.users[0].id}`);
+    assert.equal(r.body.error, 'cannot_remove_yourself');
+    r = await owner('DELETE', `/api/users/${guestId}`);
+    assert.equal(r.status, 200);
+    r = await guest('POST', '/api/sync', { since: 0, changes: [] });
+    assert.equal(r.status, 401);
+});
+
 test('changing the password signs out other devices; logout ends the session', async () => {
     const phone = client();
     const laptop = client();

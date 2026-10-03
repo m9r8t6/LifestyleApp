@@ -77,7 +77,7 @@ async function currentUser(req, res) {
     const token = readCookie(req, COOKIE_NAME);
     if (!token) return null;
     const { rows } = await pool.query(
-        `SELECT u.id, u.username, s.last_seen
+        `SELECT u.id, u.username, u.is_admin, s.last_seen
            FROM sessions s JOIN users u ON u.id = s.user_id
           WHERE s.token_hash = $1 AND s.expires_at > now()`,
         [hashToken(token)]
@@ -92,7 +92,7 @@ async function currentUser(req, res) {
         );
         setSessionCookie(req, res, token);
     }
-    return { id: rows[0].id, username: rows[0].username };
+    return { id: rows[0].id, username: rows[0].username, isAdmin: rows[0].is_admin };
 }
 
 function requireUser(req, res, next) {

@@ -63,7 +63,7 @@ function readCredentials(body) {
 app.get('/api/auth/status', wrap(async (req, res) => {
     const user = await auth.currentUser(req, res);
     res.json({
-        user: user ? { username: user.username } : null,
+        user: user ? { username: user.username, admin: user.isAdmin } : null,
         setupRequired: !user && await signupOpen(),
         ai: Boolean(DEEPSEEK_API_KEY),
     });
@@ -81,7 +81,9 @@ app.post('/api/auth/setup', wrap(async (req, res) => {
     let userId;
     try {
         const { rows } = await pool.query(
-            'INSERT INTO users (username, pass_hash) VALUES ($1, $2) RETURNING id',
+            // Whoever creates the very first account manages the others
+            `INSERT INTO users (username, pass_hash, is_admin)
+             VALUES ($1, $2, NOT EXISTS (SELECT 1 FROM users)) RETURNING id`,
             [username, passHash]
         );
         userId = rows[0].id;
@@ -127,6 +129,44 @@ app.post('/api/auth/password', auth.requireUser, wrap(async (req, res) => {
     // Sign out every device, then sign this one back in.
     await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
     await auth.createSession(req, res, req.user.id);
+    res.json({ ok: true });
+}));
+
+// ── More people (managed by the first account) ───────────
+
+function requireAdmin(req, res, next) {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'not_allowed' });
+    next();
+}
+
+app.get('/api/users', auth.requireUser, requireAdmin, wrap(async (req, res) => {
+    const { rows } = await pool.query('SELECT id, username, is_admin, created_at FROM users ORDER BY id');
+    res.json({ users: rows.map(r => ({ id: String(r.id), username: r.username, admin: r.is_admin, createdAt: r.created_at })) });
+}));
+
+// Each person gets their own, separate data. The password is only stored hashed.
+app.post('/api/users', auth.requireUser, requireAdmin, wrap(async (req, res) => {
+    const { username, password } = readCredentials(req.body);
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) return res.status(400).json({ error: 'invalid_username' });
+    if (password.length < 8 || password.length > 200) return res.status(400).json({ error: 'weak_password' });
+    try {
+        const { rows } = await pool.query(
+            'INSERT INTO users (username, pass_hash) VALUES ($1, $2) RETURNING id',
+            [username, await auth.hashPassword(password)]
+        );
+        res.json({ user: { id: String(rows[0].id), username, admin: false } });
+    } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ error: 'username_taken' });
+        throw err;
+    }
+}));
+
+// Removes the person and everything saved for them.
+app.delete('/api/users/:id', auth.requireUser, requireAdmin, wrap(async (req, res) => {
+    const id = Number(req.params.id) || 0;
+    if (id === Number(req.user.id)) return res.status(400).json({ error: 'cannot_remove_yourself' });
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1 AND NOT is_admin', [id]);
+    if (!rowCount) return res.status(404).json({ error: 'not_found' });
     res.json({ ok: true });
 }));
 

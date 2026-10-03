@@ -5,6 +5,76 @@
         return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    // ── People ──
+    const USER_ERRORS = {
+        invalid_username: 'The name needs 3 to 32 characters: small letters, numbers, dot, dash or underscore.',
+        weak_password: 'The password needs at least 8 characters.',
+        username_taken: 'This name is already taken.',
+    };
+
+    async function loadUsers() {
+        const card = document.getElementById('users-card');
+        if (!card) return;
+        let users;
+        try {
+            users = (await window.Store.api('/api/users')).users;
+        } catch (err) {
+            return;   // not the managing account (or offline): the card stays hidden
+        }
+        const list = document.getElementById('users-list');
+        if (!list) return;
+        card.style.display = '';
+        list.innerHTML = users.map(u => `
+            <div class="exercise-item">
+                <div class="exercise-info">
+                    <div class="exercise-name">${escapeHtml(u.username)}</div>
+                    <div class="exercise-detail">${u.admin ? 'manages the app' : 'own data'}</div>
+                </div>
+                ${u.admin ? '' : `<button class="btn btn-sm btn-danger" data-remove-user="${escapeHtml(u.id)}" data-name="${escapeHtml(u.username)}">Remove</button>`}
+            </div>`).join('');
+        list.querySelectorAll('[data-remove-user]').forEach(btn => btn.addEventListener('click', async () => {
+            if (!await window.App.confirm(`Everything saved for ${btn.dataset.name} is deleted for good.`, { title: `Remove ${btn.dataset.name}?`, okLabel: 'Remove', danger: true })) return;
+            try {
+                await window.Store.api(`/api/users/${btn.dataset.removeUser}`, { method: 'DELETE' });
+                window.App.showToast('Removed', 'success');
+            } catch (err) {
+                window.App.showToast('Could not remove this person.', 'error');
+            }
+            loadUsers();
+        }));
+    }
+
+    function showAddUser() {
+        window.App.showModal('Add a person', `
+            <p class="form-hint" style="margin-bottom:14px;">They sign in with this name and password and can change the password in their own Settings.</p>
+            <div class="form-group">
+                <label class="form-label" for="new-user-name">Name</label>
+                <input id="new-user-name" class="form-input" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. andrea">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="new-user-pass">Password (min. 8 characters)</label>
+                <input id="new-user-pass" class="form-input" type="password" autocomplete="new-password">
+            </div>
+            <p id="new-user-error" class="auth-error" role="alert"></p>
+        `, '<button class="btn btn-primary" id="btn-create-user">Create</button>');
+        document.getElementById('btn-create-user').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-create-user');
+            btn.disabled = true;
+            try {
+                const data = await window.Store.api('/api/users', {
+                    method: 'POST',
+                    body: { username: document.getElementById('new-user-name').value, password: document.getElementById('new-user-pass').value },
+                });
+                window.App.hideModal();
+                window.App.showToast(`${data.user.username} can sign in now`, 'success');
+                loadUsers();
+            } catch (err) {
+                document.getElementById('new-user-error').textContent = USER_ERRORS[err.message] || 'Could not create the account.';
+                btn.disabled = false;
+            }
+        });
+    }
+
     // ── Push notifications (this device) ──
     const NOTIFY_KEY = 'lifeos_notify';
 
@@ -189,6 +259,13 @@
                 <input type="file" id="input-import-file" accept="application/json,.json" style="display:none;">
             </div>
 
+            <div class="glass-card stagger-item" id="users-card" style="margin-top: 24px; display:none;">
+                <h3 style="margin-top:0; font-size:1rem; color:var(--text);">People</h3>
+                <p class="form-hint" style="margin:4px 0 12px;">Everyone has their own login and their own, separate data.</p>
+                <div id="users-list"></div>
+                <button class="btn btn-ghost" id="btn-add-user" style="width:100%; margin-top:8px;">Add a person</button>
+            </div>
+
             <div class="glass-card stagger-item" style="margin-top: 24px;">
                 <h3 style="margin-top:0; font-size:1rem; color:var(--text);">Google (Mail &amp; Calendar)</h3>
                 <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 16px;">
@@ -351,6 +428,10 @@
             }
         });
         refreshPushStatus();
+
+        // ── People (only the first account sees this) ──
+        document.getElementById('btn-add-user')?.addEventListener('click', showAddUser);
+        loadUsers();
 
         // ── Account & data ──
         document.getElementById('btn-install-app')?.addEventListener('click', async () => {
